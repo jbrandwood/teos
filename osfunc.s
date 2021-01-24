@@ -602,6 +602,8 @@ tos_exec_hucard:
 
 		sei				; Definitely disable interrupts!
 
+		stz	<VCE_CR			; disable 10MHz dot-clock; return to 5MHz
+
 		lda	#$4F			; Set 512KB mapping for HuCard.
 		sta	TED_BASE_ADDR + TED_REG_MAP
 		lda	#$40
