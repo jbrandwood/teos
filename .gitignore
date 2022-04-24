@@ -1,0 +1,6 @@
+*.o
+*.pce
+*.sgx
+*.lst
+*.sym
+teos-beta*

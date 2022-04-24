@@ -1,9 +1,11 @@
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; aplib.s
+; aplib_6280.s
 ;
 ; HuC6280 decompressor for data stored in Jorgen Ibsen's aPLib format.
+;
+; This code is written for the PCEAS/NECASM assembler in HuC & MagicKit.
 ;
 ; Copyright John Brandwood 2019.
 ;
@@ -48,13 +50,8 @@ APL_INC_PAGE	macro
 		; Macros to read a byte/bit from the compressed source data.
 		;
 
-APL_JMP_TII	=	1
-APL_GET_BIT	macro
-		asl	<apl_bitbuf
-		bne	.skip\@
-		bsr	.load_bit
-.skip\@:
-		endm
+		if	1
+
 APL_GET_SRC	macro
 		lda	[apl_srcptr],y
 		iny
@@ -63,13 +60,17 @@ APL_GET_SRC	macro
 .skip\@:
 		endm
 
-APL_GET_SRCX	macro
+		else
+
+APL_GET_SRC	macro
 		lda	[apl_srcptr]		; Can be used if you *really*
 		inc	<apl_srcptr + 0		; don't want to map MPR4.
 		bne	.skip\@
 		APL_INC_PAGE
 .skip\@:
 		endm
+
+		endif
 
 
 
@@ -78,11 +79,10 @@ APL_GET_SRCX	macro
 ;
 ; Data usage is pretty-much all of the temporary System Card locations.
 ;
-; Note that the TII instruction runs into the bottom 2 bytes of the stack.
+; Note that the TII instruction overlaps the bottom 2 bytes of the stack.
 ;
 
 apl_bitbuf	=	__bp			; 1 byte.
-
 apl_srcptr	=	__si			; 1 word.
 apl_offset	=	__di			; 1 word.
 
@@ -114,8 +114,6 @@ apl_length	=	__ch			; Part of TII instruction.
 apl_decompress: lda	#$73			; TII instruction.
 		sta	<__al
 
-		stz	<apl_length + 1
-
 		tii	.tii_end, __dh, 3	; TII ends with JMP.
 
 		lda	#$80			; Initialize an empty
@@ -136,13 +134,13 @@ apl_decompress: lda	#$73			; TII instruction.
 		bne	.next_tag
 		inc	<apl_dstptr + 1
 
-.next_tag:	asl	<apl_bitbuf		; 0 bbbbbbbb
+.next_tag:	asl	<apl_bitbuf		; 1 0 <offset> <length>
 		bcc	.literal
 		bne	.skip1
 		bsr	.load_bit
 		bcc	.literal
 
-.skip1:		asl	<apl_bitbuf		; 1 0 <offset> <length>
+.skip1:		asl	<apl_bitbuf
 		bne	.skip2
 		bsr	.load_bit
 .skip2:		bcc	.code_pair
@@ -162,7 +160,7 @@ apl_decompress: lda	#$73			; TII instruction.
 		bcc	.nibble_loop
 		beq	.write_byte		; Offset=0 means write zero.
 
-		eor	#$FF
+		eor	#$FF			; CS from previous ROL.
 		adc	<apl_dstptr + 0
 		sta	<apl_winptr + 0
 		lda	#$FF
@@ -201,12 +199,11 @@ apl_decompress: lda	#$73			; TII instruction.
 		rts
 
 .get_gamma:	lda	#1			; Get a gamma-coded value.
-;		stz	<apl_length + 1
 .gamma_loop:	asl	<apl_bitbuf
 		bne	.skip5
 		bsr	.load_bit
 .skip5:		rol	a
-;		rol	<apl_length + 1
+		rol	<apl_length + 1
 		asl	<apl_bitbuf
 		bne	.skip6
 		bsr	.load_bit
@@ -218,8 +215,9 @@ apl_decompress: lda	#$73			; TII instruction.
 		lda	<apl_length + 0
 		adc	<apl_dstptr + 0
 		sta	<apl_dstptr + 0
-		bcc	.next_tag
-		inc	<apl_dstptr + 1
+		lda	<apl_length + 1
+		adc	<apl_dstptr + 1
+		sta	<apl_dstptr + 1
 		bra	.next_tag
 
 		;
@@ -234,7 +232,6 @@ apl_decompress: lda	#$73			; TII instruction.
 		stz	<apl_offset + 1
 		cla
 		adc	#2
-		sta	<apl_length + 0
 		stz	<apl_length + 1
 		bra	.do_match
 
@@ -245,6 +242,7 @@ apl_decompress: lda	#$73			; TII instruction.
 		;
 
 .code_pair:	bsr	.get_gamma		; Bits 8..15 of offset (min 2).
+		stz	<apl_length + 1
 
 		cpx	#1			; CC if LWM==0, CS if LWM==1.
 		sbc	#2			; -3 if LWM==0, -2 if LWM==1.
@@ -271,12 +269,12 @@ apl_decompress: lda	#$73			; TII instruction.
 		bmi	.do_match
 
 .match_plus2:	inc	a			; Increment length.
-;		bne	.match_plus1
-;		inc	<apl_length + 1
+		bne	.match_plus1
+		inc	<apl_length + 1
 
 .match_plus1:	inc	a			; Increment length.
-;		bne	.do_match
-;		inc	<apl_length + 1
+		bne	.do_match
+		inc	<apl_length + 1
 
 .do_match:	sta	<apl_length + 0
 

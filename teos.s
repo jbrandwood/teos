@@ -20,6 +20,7 @@
 
 REALHW		=	1
 SUPPORT_MOUSE	=	1
+HIRES		=	1
 
 		;
 		; Inlude definitions for PC Engine assembly-language coding.
@@ -50,7 +51,7 @@ ASCII_HI	=	$01
 view:		ds	2
 
                 bss
-                org    $22D0
+                org	$22D0
 
 		data
 

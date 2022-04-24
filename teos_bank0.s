@@ -90,12 +90,13 @@ teos_initialize:sei				; Disable interrupts (soft-reset).
 
 		lda	ted_assem_date + 1	; Is TED2 hardware info setup?
 		bne	.init_pce		; (Because year is NEVER zero.)
-		lda	#$43
-		tam3
-		tii	$6100,ted_assem_date,6	; Info from TED's BootLoader2.
-		lda	#$44
-		tam3
-		tii	$7FF0,ted_boot2_ver,2	; Info from TED's BootLoader2.
+
+		lda	#$43			; The stage 1 FPGA boot loader
+		tam3				; reads the 16KB stage 2 boot
+		tii	$6100,ted_assem_date,6	; loader from eeprom to banks
+		lda	#$44			; $43 & $44.
+		tam3				; We read the hardware info
+		tii	$7FF0,ted_boot2_ver,2	; from the stage 2 image.
 
 .init_pce:	jsr	init_vce		; Blank the screen.
 
@@ -158,21 +159,6 @@ init_vce:	php
 ; the running of a HuCard cartridge image.
 ;
 
-;		ds	$8106-*			; Pad out dead space.
-;
-;		; TED2's FPGA BootLoader1 writes these variables to
-;		; this exact location in the OS when it is run.
-;
-;		; Errr ... on second thoughts, no it doesn't!
-;
-;		.org	$8106
-
-ted_assem_date:	ds	2			; Assembly date.
-ted_assem_time:	ds	2			; Assembly time.
-ted_serial_num:	ds	2			; Serial Number.
-ted_boot2_ver:	ds	2			; Boot2 Version.
-ted_unknown:	ds	8
-
 		; Current SDC volume and file selection, stored here in an OS
 		; bank so that it survives in TED2 RAM while a cart is run.
 
@@ -182,6 +168,20 @@ tos_cur_depth:	ds	1			; Depth in directory tree.
 tos_cur_page:	ds	32+1			; For each level in the tree.
 tos_cur_file:	ds	32+1			; For each level in the tree.
 tos_tennokoe:	ds	1			; Last HuCard was Ten No Koe?
+
+		ds	$8106-*			; Pad out dead space.
+
+		; Krikzz's original OS stores these values at $8106 when it
+		; runs. TEOS keeps them at the same location so that we can
+		; read them from there if TEOS is run as a HuCard image ...
+		; either from Krikzz's OS, or from another version of TEOS.
+
+		.org	$8106
+
+ted_assem_date:	ds	2			; Assembly date.
+ted_assem_time:	ds	2			; Assembly time.
+ted_serial_num:	ds	2			; Serial Number.
+ted_boot2_ver:	ds	2			; Boot2 Version.
 
 
 
@@ -272,6 +272,36 @@ init_vdc:	stx	<__ax + 0
 		db	>__cx			; 17 = VDC_DESR
 		db	>__cx			; 18 = VDC_LENR
 		db	>satb_addr		; 19 = VDC_DVSSR
+
+		; Initialization for a HuCard (256-wide with RCR for sync).
+
+video_mode_nul:	db	VCE_CR_5MHz		; VCE Clock
+
+		db	VDC_CR			; Control Register
+		dw	$0004			;   Enable RCR interrupt
+		db	VDC_RCR			; Raster Counter Register
+		dw	$0040			;   RCR irq on screen line 0
+		db	VDC_BXR			; Background X-Scroll Register
+		dw	$0000
+		db	VDC_BYR			; Background Y-Scroll Register
+		dw	$0000
+		db	VDC_MWR			; Memory-access Width Register
+		dw	VDC_MWR_32x32 + VDC_MWR_1CYCLE
+		db	VDC_HSR			; Horizontal Sync Register
+		dw	VDC_HSR_256
+		db	VDC_HDR			; Horizontal Display Register
+		dw	VDC_HDR_256
+		db	VDC_VPR			; Vertical Sync Register
+		dw	VDC_VPR_224		;   Do not change!
+		db	VDC_VDW			; Vertical Display Register
+		dw	VDC_VDW_224		;   Do not change!
+		db	VDC_VCR			; Vertical Display END position Register
+		dw	VDC_VCR_224		;   Do not change!
+		db	VDC_DCR			; DMA Control Register
+		dw	$0000
+		db	VDC_DVSSR		; SATB address $0000
+		dw	$0000
+		db	0
 
 		; A 320-wide screen, widened further to give it a border.
 
@@ -685,7 +715,7 @@ cpc464_palette:	; 0 - Yellow on Blue, selectable.
 
 		dw	$0000,$0000,$0000,$0000,$0000,$0000,$0000,$0000
 ;		dw	$0001,$0000,$01B2,$01B2,$0002,$0000,$0145,$0145
-		dw	$0001,$0000,$01B2,$01B2,$0002,$0000,$0196,$0196
+		dw	$0002,$0000,$01B2,$01B2,$0002,$0000,$0196,$0196
 
 		; 3 - Cyan on Dark Blue, BRAM title.
 
@@ -1451,9 +1481,9 @@ relocate_cart:	lda	#$01			; Set TED2 bootloader bank map.
 		tam3
 		tii	$6000,$A000,$2000	; Copy cart bank 1 to TED OS.
 
-		dec	a			; Preserve System Information.
-		tam3
-		tii	$8106,(ted_assem_date & $1FFF) + $6000,16
+		dec	a			; Keep hardware information
+		tam3				; from previous OS version.
+		tii	$8106,(ted_assem_date & $1FFF) + $6000,8
 
 		tii	$6000,$8000,$2000	; Copy cart bank 0 to TED OS.
 

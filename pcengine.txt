@@ -159,6 +159,7 @@
 ; Note: These cycle timings are to the write-cycle within the
 ;	instruction, and not to the start of the instruction.
 ;
-; Note: The VDC shadows/locks the BYR register a cycle-or-two
-;	before the BXR register, so write BYR first.
+; Note: The VDC shadows/locks the BYR register a cycle before
+;       the BXR register, so write BYR first. After BXR, the
+;       CR register is shadowed/locked next.
 ;

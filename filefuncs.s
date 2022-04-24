@@ -122,7 +122,7 @@ tos_slot_file:	jsr	tos_chdir_tbed		; Select "/TBED/" directory.
 ; tos_load_slot - Load a BRAM slot file into memory.
 ;
 
-tos_load_slot:	jsr	tos_slot_file		; Select the and open the
+tos_load_slot:	jsr	tos_slot_file		; Select and open the
 		bne	.exit			; slot file.
 
 		jsr	f32_file_read		; Read the file into memory.
@@ -138,7 +138,7 @@ tos_load_slot:	jsr	tos_slot_file		; Select the and open the
 ; tos_save_slot - Load a BRAM slot file into memory.
 ;
 
-tos_save_slot:	jsr	tos_slot_file		; Select the and open the
+tos_save_slot:	jsr	tos_slot_file		; Select and open the
 		bne	.exit			; slot file.
 
 		jsr	f32_file_write		; Write the file from memory.

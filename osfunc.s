@@ -534,10 +534,7 @@ tos_fix_region: lda	#$4F			; Map in TED2 512KB bank 4.
 ;   Bit 7 :		    : unknown (leave zero)
 ;
 
-tos_exec_hucard:
-;		jsr	clear_screen
-
-		lda	#$4F			; Map in TED2 512KB bank 4.
+tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 		sta	TED_BASE_ADDR + TED_REG_MAP
 		lda	#$40			; Select bank 0 of the HuCard
 		tam3                            ; image in TED2 memory.
@@ -593,26 +590,38 @@ tos_exec_hucard:
 
 		ldy	#%00011011		; FPGA=off+locked, RAM=readonly.
 
-.execute:	sei				; Turn the BKG and SPR off.
-		stz	<vdc_crl
-		lda	irq_cnt
-		cli
-.wait:		cmp	irq_cnt			; Wait for BKG and SPR off to
-		beq	.wait			; take effect.
+.execute:	sei				; Definitely disable interrupts!
+		phy				; Preserve FPGA flags to write.
 
-		sei				; Definitely disable interrupts!
+		ldx	#<video_mode_nul	; Set VDC registers to safe
+		lda	#>video_mode_nul	; values, with RCR for sync.
+		jsr	init_vdc
 
 		lda	#$4F			; Set 512KB mapping for HuCard.
 		sta	TED_BASE_ADDR + TED_REG_MAP
 		lda	#$40
 		tam3
 
-;		ldx	$6000 + TED_REG_CFG	; Remember byte at this addr.
-
+		ply				; Restore FPGA flags to write.
 		lda	#$F8			; Map in regular PCE RAM.
 		tam1
 
 		tii	.trampoline, $2200, (.trampoline_end - .trampoline)
+
+		; Fix "Tower of Druaga" initialization timing issue.
+		;
+		; Wait twice to ensure that a vblank occurs between the
+		; two, and that the screen is definitely blank.
+
+.wait_rcr1:	lda	VDC_SR			; Wait for the RCR at line 0.
+		bit	#$04
+		beq	.wait_rcr1
+.wait_rcr2:	lda	VDC_SR			; Wait for the RCR at line 0.
+		bit	#$04
+		beq	.wait_rcr2
+
+		st0	#$05			; Disable RCR interrupt.
+		st1	#$00
 
 		jmp	$2200			; Exec the trampoline in RAM.
 
@@ -627,10 +636,6 @@ tos_exec_hucard:
 		; Set HuCard-specific config.
 
 		sty	TED_BASE_ADDR + TED_REG_CFG
-
-		; Repair RAM-writable HuCard.
-
-;		stx	TED_BASE_ADDR + TED_REG_CFG
 
 		cla				; Put Bank $00 in MPR7.
 		tam7

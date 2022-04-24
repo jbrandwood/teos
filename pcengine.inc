@@ -403,6 +403,9 @@ scsists         = $227B ; 1
 suberrc         = $227C ; 1
 ;???	        = $227D ; 1
 subcode         = $227E ; 1
+
+colortia        = $2286 ; 8
+;?              = $228E ; ?
  
 ;mprsav		= $22B5 ; 8 backups of MPR when BIOS needs major bank swapping.
 
