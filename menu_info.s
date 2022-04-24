@@ -130,7 +130,7 @@ msg_system_info:db	"%>%p5"
 		db	"%p0"
 		db	"%r"
 		dw	$FFF0
-		db	"OS Version      : %X beta 5",$0A
+		db	"OS Version      : %X beta 6",$0A
 		db	"Support Forum   :",$0A
 		db	"      http://pcengine.proboards.com",$0A
 

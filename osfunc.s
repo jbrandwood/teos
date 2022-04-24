@@ -272,7 +272,7 @@ tos_show_files:	stz	tos_num_files		; # of files on this page.
 ;		sta	<__ax + 1
 ;		jsr	tos_fastfwd_dir
 ;		lda	<__ax + 0
-;		eor	#$FF		
+;		eor	#$FF
 ;		sta	tos_file_count + 0
 ;		lda	<__ax + 1
 ;		eor	#$FF
@@ -549,7 +549,7 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 		sta	<__ah
 
 		ldx	#5-1			; # of signatures to search for.
-		
+
 .test_card:	ldy	#15-1
 
 		lda	[__ax],y		; Does the HuCard size match?
@@ -607,6 +607,18 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 		tam1
 
 		tii	.trampoline, $2200, (.trampoline_end - .trampoline)
+
+		; Fix "Order of the Griffon" uninitialized palette issue.
+		;
+		; Reset final background graphics palette entry to #$1FF
+		; to resemble 'uninitialized' state
+
+		lda	#$FF
+		sta	VCE_CTA + 0
+		stz	VCE_CTA + 1
+		sta	VCE_CTW + 0
+		lda	#$01
+		sta	VCE_CTW + 1
 
 		; Fix "Tower of Druaga" initialization timing issue.
 		;
