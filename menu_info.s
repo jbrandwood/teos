@@ -70,7 +70,7 @@ tos_info_menu:	; 16-bit Date : 7-bits Year, 4-bits Month, 5-bits Day.
 		PUTS	msg_system_info
 
 .wait_input:	stz	joytrg
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb		; Wait, but check for USB.
 		lda	joytrg
 		beq	.wait_loop
 

@@ -3,7 +3,7 @@
 ;
 ; BANK $03 - INTERRUPT HANDLERS AND UTILITY CODE
 ;
-; Copyright John Brandwood 2019.
+; Copyright John Brandwood 2019-2022.
 ;
 ; Distributed under the Boost Software License, Version 1.0.
 ; (See accompanying file LICENSE_1_0.txt or copy at
@@ -16,7 +16,6 @@
 
 		bank	3
 ;		org	$E000
-
 
 
 ; ***************************************************************************
@@ -159,7 +158,7 @@ fix_memopen:	lda	#$68		; Return that 192KB of external SCD RAM
 		clc			; internal SCD RAM chip.
 		rts
 
-fix_scrsiz:	pha	        	; Repair "Gate of Thunder" damage.
+fix_scrsiz:	pha			; Repair "Gate of Thunder" damage.
 		lda	#$80
 		sta	$FFF5
 		pla
@@ -268,7 +267,7 @@ tos_patch_jpn30:lda	#$41
 .bootld_jsr_jpn:jsr	fix_bootload
 
 		;
-		; Patch the USA version of the Super System Card 3.0 
+		; Patch the USA version of the Super System Card 3.0
 		;
 
 tos_patch_usa30:lda	#$41
@@ -462,6 +461,137 @@ wait_vsync:	pha
 ; ***************************************************************************
 ; ***************************************************************************
 ;
+; wait_vsync_usb - Wait for the next VSYNC, while checking for USB commands.
+;
+
+wait_vsync_usb:	pha
+		phx
+		phy
+		ldy	irq_cnt
+.wait:		TED_USB_RD_TEST
+		bne	.got_usb
+		cpy	irq_cnt
+		beq	.wait
+		ply
+		plx
+		pla
+		rts
+
+.got_usb:	TED_USB_RD_BYTE
+		cmp	#'*'
+		bne	.wait
+
+		TED_USB_RD_BYTE
+		cmp	#'t'
+		beq	.got_t
+		cmp	#'g'
+		beq	.got_g
+		bra	.wait
+
+; turbo-usb2.exe wants to know if we're listening!
+
+.got_t:		lda	#'k'
+		TED_USB_WR_BYTE
+		bra	.wait
+
+; turbo-usb2.exe wants to send a HuCard ROM image!
+
+.got_g:		if	HIRES
+		ldx	#<video_mode_480	; Change to hi-res screen.
+		lda	#>video_mode_480
+		jsr	tos_screen_mode
+		endif
+
+		PUTS	.msg_usb_title		; Display USB message.
+		PUTS	.msg_usb_upload		; The only function, for now!
+
+		stz	tos_card_size		; Keep track of size loaded.
+
+		lda	#$4F			; Map in TED2 512KB block 4.
+		sta	TED_BASE_ADDR + TED_REG_MAP
+
+		pha				; Preserve TED2 512KB block.
+
+		lda	#$40			; Select bank 0 of the HuCard
+		tam3                            ; image in TED2 memory.
+
+.bank_loop:	clx
+		lda	#$60			; Reset the desination page.
+		sta	.save_page + 2
+
+.byte_loop:	lda	#(1 << TED_FLG_USB_RD)	; Copy a byte from USB.
+.wait_byte:	bit	TED_BASE_ADDR + TED_REG_STATE
+		beq     .wait_byte
+                lda     TED_BASE_ADDR + TED_REG_FIFO
+.save_page:	sta	$6000,x
+		inx
+		bne	.byte_loop		; Same page?
+		inc	.save_page + 2
+		bpl	.byte_loop		; Same bank?
+
+		PUTS	.msg_usb_dot		; Update progress bar.
+
+		tma3				; Map in next PCE 8KB bank.
+		inc	a
+		bpl	.next_bank		; Have we just loaded 512KB?
+
+.next_512kb:	pla				; Map in next TED 512KB block.
+		clc
+		adc	#$10
+		bit	#$40			; Wrap from block 4 to block 0.
+		beq	.wrap_512kb
+		and	#$0F
+
+.wrap_512kb:	pha				; Preserve TED2 512KB block.
+		sta	TED_BASE_ADDR + TED_REG_MAP
+
+		lda	#$40			; Reset destination PCE bank.
+.next_bank:	tam3
+		bit	#$0F
+		bne	.wait_next
+		inc	tos_card_size		; Increment # of 128KB chunks.
+
+		bit	#$1F			; Half hi-res line.
+;		bit	#$3F			; Full hi-res line.
+		bne	.wait_next
+		PUTS	.msg_usb_eol		; Update progress bar.
+
+.wait_next:	TED_USB_RD_BYTE			; What next?
+		cmp	#'+'			; Load another bank!
+		beq	.bank_loop
+
+		pla				; Discard TED 512KB block.
+
+		TED_USB_RD_BYTE			; Is this a special HuCard?
+;		cmp	#'p'			; It is Populous?
+;		cmp	#'s'			; It is Street Fighter?
+		sta	.msg_usb_type + 1
+
+		tma3				; Inform the user, not that
+		and	#$1F			; they'll have time to see
+		beq	.skip_eol		; it before the HuCard runs!
+		PUTS	.msg_usb_eol
+.skip_eol:	PUTS	.msg_usb_done
+
+		jmp	tos_exec_hucard		; Execute the HuCard.
+
+.msg_usb_title:	db	"%>%p5%xl",0
+		db	$0C
+		db	" USB Communication"
+		db	"%<%p0"
+		db	$0A,$0A,$0A,0
+
+.msg_usb_upload:db	" Starting download from computer!",$0A," ",0
+.msg_usb_dot:	db	".",0
+.msg_usb_eol:	db	$0A," ",0
+.msg_usb_done:	db	"Completed download of type "
+.msg_usb_type:	db	"'x' HuCard.",$0A,$0A,$0A,0
+
+
+
+; ***************************************************************************
+; ***************************************************************************
+;
 ; read_joypads (full mouse support, but 6-button pad III..VI are ignored).
 ;
 ; This code distinguishes between a mouse and a 2-button or 6-button joypad,
@@ -568,7 +698,7 @@ read_joypads:	tii	joynow,joyold,MAX_PADS	; Save the previous values.
 		sta	joytrg,x
 		ldy	#FAST_AUTORPT
 .set_delay:	tya
-		sta	joyrpt,x	
+		sta	joyrpt,x
 
 .no_repeat:	dex				; Check the next pad from the
 		bpl	.pressed_loop		; multitap.
@@ -624,7 +754,7 @@ read_joypads:	tii	joynow,joyold,MAX_PADS	; Save the previous values.
 
 		dey				; Do the next complete pass.
 		bpl	.read_turbotap		; Have we finished 4 passes?
-		rts                             ; Now that everything is read.
+		rts				; Now that everything is read.
 
 		; Mouse processing, split into four passes.
 
@@ -771,10 +901,10 @@ read_joypads:	tii	joynow,joyold,MAX_PADS	; Save the previous values.
 		ldx	#MAX_PADS - 1
 
 .pressed_loop:	lda	joy6now,x		; Calc which buttons have just
-		eor	joy6old,x               ; been pressed.
-		and	joy6now,x               ; Unlike the System Card, here
-		ora	joy6trg,x               ; the "trg" is cumulative and
-		sta	joy6trg,x               ; must be cleared when used.
+		eor	joy6old,x		; been pressed.
+		and	joy6now,x		; Unlike the System Card, here
+		ora	joy6trg,x		; the "trg" is cumulative and
+		sta	joy6trg,x		; must be cleared when used.
 
 		lda	joynow,x
 		tay
@@ -803,7 +933,7 @@ read_joypads:	tii	joynow,joyold,MAX_PADS	; Save the previous values.
 		sta	joytrg,x
 		ldy	#FAST_AUTORPT
 .set_delay:	tya
-		sta	joyrpt,x	
+		sta	joyrpt,x
 
 .no_repeat:	dex				; Check the next pad from the
 		bpl	.pressed_loop		; multitap.
@@ -1005,7 +1135,7 @@ rom_irq2_stub:	bbs0	<irq_vec, jmp_irq2_hook
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; rom_timer_stub - System Card compatible interrupt handler stub. 
+; rom_timer_stub - System Card compatible interrupt handler stub.
 ;
 ; Note that it takes 8 cycles to respond to an IRQ.
 ;
@@ -1020,7 +1150,7 @@ rom_timer_stub: bbs2	<irq_vec, jmp_timer_hook
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; rom_nmi_stub - System Card compatible interrupt handler stub. 
+; rom_nmi_stub - System Card compatible interrupt handler stub.
 ;
 ; Note that it takes 8 cycles to respond to an IRQ.
 ;

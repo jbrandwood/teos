@@ -278,7 +278,7 @@ tos_m128_menu:	stz	tos_m128_mode
 		PUTS	msg_m128_none
 
 .wait_input:	stz	joytrg
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb		; Wait, but check for USB.
 		lda	joytrg
 		beq	.wait_loop
 

@@ -164,7 +164,8 @@ tos_hucard_menu:
 .empty_dir:	PUTS	msg_empty_dir
 
 .wait_input:	stz	joytrg
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb		; Wait, but check for USB.
+
 		lda	joytrg
 		beq	.wait_loop
 
