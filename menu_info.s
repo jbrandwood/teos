@@ -76,7 +76,7 @@ tos_info_menu:	; 16-bit Date : 7-bits Year, 4-bits Month, 5-bits Day.
 
 		bit	#JOY_SEL
 		beq	.same_menu
-		jmp	tos_hucard_menu
+		jmp	tos_m128_menu
 
 .same_menu:	bra	.wait_input
 
@@ -90,8 +90,8 @@ tos_info_temp:	ds	7
 		;
 		;
 
-msg_system_info:db	"%>%p5"
-		db	"%xl",0
+
+msg_system_info:db	"%>%p5%xl",0
 		db	$0C
 		db	" SYSTEM INFORMATION%p0"
 		db	$0A,$0A
