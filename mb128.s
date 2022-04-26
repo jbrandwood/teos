@@ -74,6 +74,15 @@ MB1_ERR_READ	=	$A3
 MB1_ERR_WRITE	=	$A4
 
 ; 1st entry in MB128's 1024-byte directory.
+;
+; N.B. Some early MB128 games did not count the 2 directory sectors in the
+;      total number of sectors used, while later MB128 games do.
+;      But some later games only check the lo-byte of MB1_HEAD_USED, which
+;      makes them think that $0000 is actually $0100 (i.e. full), and then
+;      they think that a freshly-formatted MB128 is actually full.
+;
+;      These library rountines count the 2 directory sectors in the total,
+;      but they do not trust MB1_HEAD_USED, and always recalculate it.
 
 MB1_HEAD_CSUM	=	$00			; ( 2) Checksum of last 510 bytes.
 MB1_HEAD_USED	=	$02			; ( 2) # of sectors used.
@@ -95,9 +104,10 @@ MB1_FILE_NAME	=	$08			; ( 8) Filename.
 		bss
 
 mb1_detected:	ds	1			; NZ if an MB128 has been found.
-mb1_sector_num:	ds	1
 mb1_retry_left:	ds	1
 mb1_base_bank:	ds	1			; BRAM_BANK or SLOT_BANK.
+mb1_sector_num:	ds	1
+mb1_file_count	=	mb1_sector_num		; Used at different times!
 
 mb1_directory	=	$6000			; 1024-bytes.
 
@@ -354,13 +364,8 @@ mb1_read_info:
 .write_ok:	db	" Data write OK.",$0A,0
 .write_match:	db	" Data written matches original.",$0A,0
 
-
-
-
-
-
-mb1_format:	db	$32, $06, $02, $00
-;		db	$30, $06, $00, $00
+mb1_format:	dw	$0632 ; MB1_HEAD_CSUM
+		dw	$0002 ; MB1_HEAD_USED
 mb1_signature:	db	$D2, $D3, $D8, $CD, $DE, $B0, $BD, $31, $32, $38, 0, 0
 
 
@@ -397,8 +402,35 @@ mb1_msg_wr_fail:db	$0A
 
 
 
+; ****************************************************************************
+; ****************************************************************************
+;
+; mb1_new_image - Format a new MB128 image in memory.
+;
+; Args: A = bank # of image (uses 16 contiguous banks)
+; Uses: mb1_directory address in mb1_base_bank.
+;
+; Returns: X = MB1_OK (and Z flag) or an error code.
+;
 
+mb1_new_image:	sta	mb1_base_bank		; Set the image base bank.
+		tma3
 
+		tai	tos_zero, mb1_directory, 1024
+		tii	mb1_format, mb1_directory, 16
+
+		lda	#>(mb1_directory + 1024)
+		sta	__ax + 1
+		stz	__ax + 0
+		lda	#$FF
+		ldx	#254
+		jsr	mb1_fill_memory
+
+		lda	mb1_base_bank		; Map in the directory bank.
+		tam3
+
+		ldx	#MB1_OK
+		rts
 
 
 
@@ -416,7 +448,7 @@ mb1_msg_wr_fail:db	$0A
 
 mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
 
-		PUTS	cls_copy_mbram
+		PUTS	cls_m128_save
 		PUTS	mb1_msg_rdd_now
 
 		jsr	mb1_load_dir		; Load the directory & verify
@@ -600,7 +632,7 @@ mb1_copy_name:	ldy	#$08
 
 mb1_save_image:	sta	mb1_base_bank		; Set the image base bank.
 
-		PUTS	cls_copy_mslot
+		PUTS	cls_m128_load
 
 		jsr	mb1_check_dir		; Sanity Check the directory
 		beq	.got_dir		; contents *before* saving.
@@ -881,6 +913,16 @@ mb1_save_dir:	lda	mb1_base_bank		; Map in the directory bank.
 mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		tam3
 
+		stz	mb1_file_count		; #files.
+
+		ldy	#12-1			; Compare the signature.
+.ident:		lda	mb1_directory + MB1_HEAD_IDENT,y
+		cmp	mb1_signature,y
+		bne	.invalid_file
+		dey
+		bpl	.ident
+
+
 		stz	<__ax + 0		; Calculate the # of sectors
 		lda	#>mb1_directory		; used, incl the directory.
 		sta	<__ax + 1		; (2..256).
@@ -918,7 +960,9 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		bcc	.used_ok
 		inc	mb1_directory + MB1_HEAD_USED + 1
 
-.used_ok:	tya				; Goto next file entry.
+.used_ok:	inc	mb1_file_count		; #files.
+
+		tya				; Goto next file entry.
 		clc
 		adc	#$10-1
 		tay
@@ -961,6 +1005,7 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		lda	<__ah
 		sta	mb1_directory + MB1_HEAD_CSUM + 1
 
+.self_cnt:	ldy	#0			; #files.
 		ldx	#MB1_OK
 		rts
 
