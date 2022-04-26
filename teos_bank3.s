@@ -202,7 +202,7 @@ end_memopen:
 
 SCRSIZ_JMP_JPN	=	$E267 ; System Card bank 0 ; Original vector.
 DISPLAY_JSR_JPN	=	$C887 ; System Card bank 1 ; V3.01 patch addr.
-DISPLAY_MSG_JPN =	$C950 ; System Card bank 1 ; Original function.
+DISPLAY_MSG_JPN	=	$C950 ; System Card bank 1 ; Original function.
 
 MEMTEST_JSR_JPN	=	$C86B ; System Card bank 1
 MESSAGE_STR_JPN	=	$C9D1 ; System Card bank 1
@@ -215,7 +215,7 @@ MEMOPEN_FNC_JPN	=	$FE92 ; System Card bank 0
 
 SCRSIZ_JMP_USA	=	$E280 ; System Card bank 0 ; Original vector.
 DISPLAY_JSR_USA	=	$C887 ; System Card bank 1 ; V3.01 patch addr.
-DISPLAY_MSG_USA =	$C943 ; System Card bank 1 ; Original function
+DISPLAY_MSG_USA	=	$C943 ; System Card bank 1 ; Original function
 
 MEMTEST_JSR_USA	=	$C86B ; System Card Bank 1
 MESSAGE_STR_USA	=	$C9C4 ; System Card bank 1
@@ -513,7 +513,7 @@ wait_vsync_usb:	pha
 		pha				; Preserve TED2 512KB block.
 
 		lda	#$40			; Select bank 0 of the HuCard
-		tam3                            ; image in TED2 memory.
+		tam3				; image in TED2 memory.
 
 .bank_loop:	clx
 		lda	#$60			; Reset the desination page.
@@ -521,8 +521,8 @@ wait_vsync_usb:	pha
 
 .byte_loop:	lda	#(1 << TED_FLG_USB_RD)	; Copy a byte from USB.
 .wait_byte:	bit	TED_BASE_ADDR + TED_REG_STATE
-		beq     .wait_byte
-                lda     TED_BASE_ADDR + TED_REG_FIFO
+		beq	.wait_byte
+		lda	TED_BASE_ADDR + TED_REG_FIFO
 .save_page:	sta	$6000,x
 		inx
 		bne	.byte_loop		; Same page?
@@ -621,7 +621,7 @@ wait_vsync_usb:	pha
 ; bit 4 (ie $10) = zero
 ; bit 5 (ie $20) = zero
 ; bit 6 (ie $40) = zero
-; bit 7 (ie $80) = zero, but set to one	for 6-button detect.
+; bit 7 (ie $80) = zero, but set to one for 6-button detect.
 ;
 
 		if	SUPPORT_MOUSE
@@ -839,7 +839,7 @@ mouse_flags	=	.device_mod + 1
 ; bit 4 (ie $10) = zero
 ; bit 5 (ie $20) = zero
 ; bit 6 (ie $40) = zero
-; bit 7 (ie $80) = zero, but set to one	for 6-button detect.
+; bit 7 (ie $80) = zero, but set to one for 6-button detect.
 ;
 
 		if	SUPPORT_MOUSE

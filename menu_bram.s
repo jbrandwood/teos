@@ -1,11 +1,11 @@
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; osmenu.s
+; menu_bram.s
 ;
 ; TEOS Menu Screens
 ;
-; Copyright John Brandwood 2019.
+; Copyright John Brandwood 2019-2022.
 ;
 ; Distributed under the Boost Software License, Version 1.0.
 ; (See accompanying file LICENSE_1_0.txt or copy at
@@ -19,7 +19,7 @@
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; tos_bram_menu - TENNOKOE DS menu.
+; tos_bram_menu - Text messages for the TENNOKOE SD menu.
 ;
 
 		;
@@ -174,6 +174,8 @@ hlp_copy_bram:	db	"%<%p5%xl",0
 
 		db	0
 
+		;
+
 hlp_swap_bram:	db	"%<%p5%xl",0
 		db	"%x",0
 		db	"%y",24
@@ -209,6 +211,8 @@ hlp_swap_bram:	db	"%<%p5%xl",0
 		db	"><",$0A
 
 		db	0
+
+		;
 
 hlp_copy_slot:	db	"%<%p5%xl",0
 		db	"%x",0
@@ -246,6 +250,8 @@ hlp_copy_slot:	db	"%<%p5%xl",0
 
 		db	0
 
+		;
+
 hlp_wipe_file:	db	"%<%p5%xl",0
 		db	"%x",0
 		db	"%y",24
@@ -262,6 +268,14 @@ hlp_wipe_file:	db	"%<%p5%xl",0
 ;		db	" ------------------                     ",0
 		db	0
 
+		;
+		;
+		;
+
+msg_bram_name:	db	"%10c %r"
+		dw	tos_temp_length
+		db	"%4u",$0A,$0A,0
+
 msg_small_index:db	"%-2hu",0
 msg_large_index:db	"%02hu",0
 
@@ -269,22 +283,6 @@ msg_bram_larrow:db	$1C,0
 msg_bram_rarrow:db	$1D,0
 
 msg_bram_space:	db	" ",0
-
-		if	0
-
-msg_bram_name:	db	"%10c",0
-
-msg_bram_size:	db	"%r"
-		dw	tos_temp_length
-		db	"%4u",$0A,$0A,0
-
-		else
-
-msg_bram_name:	db	"%10c %r"
-		dw	tos_temp_length
-		db	"%4u",$0A,$0A,0
-
-		endif
 
 msg_bram_spaces:db	"        "
 		db	"        ",$0A,$0A,0
@@ -325,9 +323,13 @@ tos_temp_length:ds	2
 
 		code
 
-		;
-		;
-		;
+
+
+; ***************************************************************************
+; ***************************************************************************
+;
+; tos_bram_menu - TENNOKOE SD menu.
+;
 
 tos_bram_menu:	stz	tos_bram_mode
 		stz	tos_bram_slot
@@ -444,11 +446,7 @@ tos_bram_menu2:	jsr	clear_screen
 
 		; Display contents of BRAM_BANK.
 
-.redraw_menu:
-
-.show_bram:	if	1
-
-		ldx	tos_bram_mode
+.show_bram:	ldx	tos_bram_mode
 		cpx	#3
 		bne	.bram_box_color
 
@@ -456,21 +454,6 @@ tos_bram_menu2:	jsr	clear_screen
 
 .bram_box_color:lda	.tbl_box_lhs,x
 		jsr	tos_set_pen
-
-		else
-
-		lda	#1			; Always hilite the box in
-		cmp	tos_bram_mode		; "Swap" mode.
-		beq	.bram_box_color
-
-		cla				; Otherwise, only hilite the
-		ldx	tos_bram_chosen + 0	; box if no file is selected.
-		bne	.bram_box_color
-		ldx	tos_bram_mode
-		lda	.tbl_box_lhs,x
-.bram_box_color:jsr	tos_set_pen
-
-		endif
 
 		PUTS	msg_bram_lhs
 
@@ -489,27 +472,9 @@ tos_bram_menu2:	jsr	clear_screen
 		PUTS	msg_blank_rhs
 		bra	.wait_input
 
-.show_slot:
-		if	1
-
-		ldx	tos_bram_mode
+.show_slot:	ldx	tos_bram_mode
 		lda	.tbl_box_rhs,x
 		jsr	tos_set_pen
-
-		else
-
-		lda	#1			; Always hilite the box in
-		cmp	tos_bram_mode		; "Swap" mode.
-		beq	.slot_box_color
-
-		cla				; Otherwise, only hilite the
-		ldx	tos_bram_chosen + 2	; box if no file is selected.
-		bne	.slot_box_color
-		ldx	tos_bram_mode
-		lda	.tbl_box_rhs,x
-.slot_box_color:jsr	tos_set_pen
-
-		endif
 
 		inc	tos_bram_slot		; Show slot from '1' not '0'.
 		PUTS	msg_bram_rhs
@@ -589,7 +554,7 @@ tos_bram_menu2:	jsr	clear_screen
 		sta	tos_bram_chosen + 2
 		pla
 		sta	tos_bram_chosen + 0
-		jmp	.redraw_menu
+		jmp	.show_bram
 
 .next_file:	clx
 		ldy	#2
@@ -617,10 +582,10 @@ tos_bram_menu2:	jsr	clear_screen
 
 .vector:	jmp	[.tbl_funcs,x]
 
-.tbl_funcs:	dw	func_copy_bram
-		dw	func_swap_bram
-		dw	func_copy_slot
-		dw	func_wipe_file
+.tbl_funcs:	dw	func_bram_save
+		dw	func_bram_swap
+		dw	func_bram_load
+		dw	func_bram_del
 
 .tbl_box_lhs:	db	1,1,0,0			; Palette for box per mode.
 .tbl_box_rhs:	db	0,1,1,0			; Palette for box per mode.
@@ -673,28 +638,6 @@ tos_bram_info:	lda	<__bl			; Are there any BRAM files?
 ; N.B. There can be a maximum of 126 files in the 2KB of BRAM.
 ;
 
-		if	0
-
-tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
-		sta	tos_bram_choice		; at the top of the box.
-		bne	.non_zero
-		inc	a
-.non_zero:	sta	tos_bram_first
-		clc
-		adc	#7
-		eor	#$FF
-		sec
-		adc	tos_bram_files,x
-		bcs	.test_focus
-		adc	tos_bram_choice
-		bcs	.rewind_first
-		lda	#1
-.rewind_first:	sta	tos_bram_first
-
-.first_to_show:
-
-		else
-
 tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 		sta	tos_bram_choice		; at the top of the box.
 		sec
@@ -702,21 +645,6 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 		bcs	.first_to_show
 		lda	#1
 .first_to_show:	sta	tos_bram_first
-
-		endif
-
-		if	0
-
-.test_focus:	stz	tos_bram_hilite		; Set hilite color to normal.
-
-		cpx	tos_bram_focus		; Is this side of the menu display
-		bne	.first_in_bram		; in "focus"?
-
-		inc	tos_bram_hilite		; Set hilite color to pulsing.
-
-;		stz	tos_bram_choice		; Do not hilite any file.
-
-		else
 
 .test_focus:	lda	#1
 		sta	tos_bram_hilite		; Set hilite color to pulsing.
@@ -728,9 +656,7 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 		stz	tos_bram_hilite		; Set hilite color to normal.
 		stz	tos_bram_choice		; Do not hilite any file.
 
-		endif
-
-.first_in_bram:	ldy	#<$6010
+.first_in_bram:	ldy	#<$6010			; Start after the BRAM signature.
 		lda	#>$6010
 
 		stz	tos_bram_index
@@ -781,6 +707,8 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 		lda	tos_bram_hilite
 .file_color:	jsr	tos_set_pen
 
+		if	0
+
 		ldx	#<msg_small_index	; Display bottom 2 digits
 		ldy	#>msg_small_index
 
@@ -801,6 +729,8 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 
 ;		tya
 ;		jsr	tos_print_msg
+
+		endif
 
 		ldx	#<msg_bram_space	; Display the LHS file cursor.
 		ldy	#>msg_bram_space
@@ -834,25 +764,6 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 
 .show_name:	PUTS	msg_bram_name
 
-		if	0
-
-		ldx	#<msg_bram_space	; Display the RHS file cursor.
-		ldy	#>msg_bram_space
-
-		lda	tos_bram_index
-		cmp	tos_bram_choice
-		bne	.show_rhs_arrow
-
-		ldx	#<msg_bram_rarrow
-		ldy	#>msg_bram_rarrow
-
-.show_rhs_arrow:tya
-		jsr	tos_print_msg
-
-		PUTS	msg_bram_size
-
-		endif
-
 		pla				; Restore next file pointer.
 		ply
 
@@ -876,16 +787,16 @@ tos_bram_show:	lda	tos_bram_chosen,x	; Decide which file to display
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; func_copy_bram - Copy BRAM to SD card slot.
+; func_bram_save - Copy BRAM to SD card slot.
 ;
 
-func_copy_bram:	PUTS	cls_copy_bram		; Confirm the operation.
+func_bram_save:	PUTS	cls_copy_bram		; Confirm the operation.
 		inc	tos_bram_slot		; Show slot from '1' not '0'.
 		PUTS	.msg_warning
 		dec	tos_bram_slot
 
 .wait_input:	stz	joytrg			; Wait for input.
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb
 		lda	joytrg
 		beq	.wait_loop
 		bit	#JOY_RUN
@@ -921,7 +832,7 @@ func_copy_bram:	PUTS	cls_copy_bram		; Confirm the operation.
 		dw	tos_bram_slot
 		db	"%y",11
 		db	"  Please press %p1RUN%p0 to confirm that you",$0A
-		db	"    want to copy BRAM to SD Slot %02hu!",$0A
+		db	"    want to copy BRAM to SD Slot #%hu!",$0A
 		db	"%y",24
 		db	"%x",12
 		db	"%p5RUN%p6:Confirm copy",$0A
@@ -937,16 +848,16 @@ msg_fail_bram:	db	" BRAM save failed!",$0A,$0A,0
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; func_swap_bram - Swap BRAM with SD card slot.
+; func_bram_swap - Swap BRAM with SD card slot.
 ;
 
-func_swap_bram:	PUTS	cls_swap_bram
+func_bram_swap:	PUTS	cls_swap_bram
 		inc	tos_bram_slot		; Show slot from '1' not '0'.
 		PUTS	.msg_warning
 		dec	tos_bram_slot
 
 .wait_input:	stz	joytrg			; Wait for input.
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb
 		lda	joytrg
 		beq	.wait_loop
 		bit	#JOY_RUN
@@ -1004,7 +915,7 @@ func_swap_bram:	PUTS	cls_swap_bram
 		dw	tos_bram_slot
 		db	"%y",11
 		db	"  Please press %p1RUN%p0 to confirm that you",$0A
-		db	"   want to swap BRAM with SD Slot %02hu!",$0A
+		db	"   want to swap BRAM with SD Slot #%hu!",$0A
 		db	"%y",24
 		db	"%x",12
 		db	"%p5RUN%p6:Confirm swap",$0A
@@ -1017,16 +928,16 @@ func_swap_bram:	PUTS	cls_swap_bram
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; func_copy_slot - Copy SD card slot to BRAM.
+; func_bram_load - Copy SD card slot to BRAM.
 ;
 
-func_copy_slot:	PUTS	cls_copy_slot
+func_bram_load:	PUTS	cls_copy_slot
 		inc	tos_bram_slot		; Show slot from '1' not '0'.
 		PUTS	.msg_warning
 		dec	tos_bram_slot
 
 .wait_input:	stz	joytrg			; Wait for input.
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb
 		lda	joytrg
 		beq	.wait_loop
 		bit	#JOY_RUN
@@ -1045,7 +956,7 @@ func_copy_slot:	PUTS	cls_copy_slot
 		dw	tos_bram_slot
 		db	"%y",11
 		db	"  Please press %p1RUN%p0 to confirm that you",$0A
-		db	"    want to copy SD Slot %02hu to BRAM!",$0A
+		db	"    want to copy SD Slot #%hu to BRAM!",$0A
 		db	"%y",24
 		db	"%x",12
 		db	"%p5RUN%p6:Confirm copy",$0A
@@ -1058,10 +969,10 @@ func_copy_slot:	PUTS	cls_copy_slot
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; func_wipe_file - Delete a file from BRAM.
+; func_bram_del - Delete a file from BRAM.
 ;
 
-func_wipe_file:	lda	tos_bram_files		; Are there any files in BRAM?
+func_bram_del:	lda	tos_bram_files		; Are there any files in BRAM?
 		bne	.wipe
 		rts
 
@@ -1075,7 +986,7 @@ func_wipe_file:	lda	tos_bram_files		; Are there any files in BRAM?
 		PUTS	.msg_warning
 
 .wait_input:	stz	joytrg			; Wait for input.
-.wait_loop:	jsr	wait_vsync
+.wait_loop:	jsr	wait_vsync_usb
 		lda	joytrg
 		beq	.wait_loop
 		bit	#JOY_RUN
@@ -1170,7 +1081,3 @@ func_wipe_file:	lda	tos_bram_files		; Are there any files in BRAM?
 		db	"%x",12
 		db	"%p5",30,31,"%p6:Cancel delete",$0A
 		db	"%p0%y",14,0
-
-		;
-		;
-		;

@@ -22,8 +22,8 @@
 ;
 ;
 
-msg_main_title:	db	$0C
-		db	"%>%p5"
+msg_main_title:	db	"%>%p5%xl",0
+		db	$0C
 		db	" RUN HuCARD"
 		db	"%<%p0"
 		db	$0A,$0A,$0A,0
