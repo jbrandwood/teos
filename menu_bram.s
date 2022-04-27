@@ -26,6 +26,11 @@
 		;
 		;
 
+BRAM_SAVE	=	0
+BRAM_SWAP	=	1
+BRAM_LOAD	=	2
+BRAM_DEL	=	3
+
 tbl_bram_title:	dw	msg_copy_bram
 		dw	msg_swap_bram
 		dw	msg_copy_slot
@@ -397,7 +402,7 @@ tos_bram_menu2:	jsr	clear_screen
 .slot_info:	ldx	#2			; Save BRAM info.
 		jsr	tos_bram_info
 
-		;
+		; Has the mode just changed?
 
 .new_mode:	ldx	tos_bram_mode		; Lookup which side has focus.
 		lda	.tbl_focus_side,x
@@ -408,7 +413,7 @@ tos_bram_menu2:	jsr	clear_screen
 		sta	tos_bram_chosen + 0	; Set current selection.
 		sta	tos_bram_chosen + 2
 
-		cpx	#3			; Delete File mode?
+		cpx	#BRAM_DEL		; Delete File mode?
 		beq	.show_title
 
 		ldx	#2
@@ -447,7 +452,7 @@ tos_bram_menu2:	jsr	clear_screen
 		; Display contents of BRAM_BANK.
 
 .show_bram:	ldx	tos_bram_mode
-		cpx	#3
+		cpx	#BRAM_DEL
 		bne	.bram_box_color
 
 		stz	tos_hilite_idx		; Reset hilite pulsing.
@@ -466,7 +471,7 @@ tos_bram_menu2:	jsr	clear_screen
 		; Display contents of SLOT_BANK.
 
 		lda	tos_bram_mode
-		cmp	#3
+		cmp	#BRAM_DEL
 		bne	.show_slot
 
 		PUTS	msg_blank_rhs

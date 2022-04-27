@@ -75,11 +75,11 @@ MB1_ERR_WRITE	=	$A4
 
 ; 1st entry in MB128's 1024-byte directory.
 ;
-; N.B. Some early MB128 games did not count the 2 directory sectors in the
-;      total number of sectors used, while later MB128 games do.
-;      But some later games only check the lo-byte of MB1_HEAD_USED, which
+; N.B. Some later MB128 games did not count the 2 directory sectors in the
+;      total number of sectors used, while earlier MB128 games do.
+;      But some early games only check the lo-byte of MB1_HEAD_USED, which
 ;      makes them think that $0000 is actually $0100 (i.e. full), and then
-;      they think that a freshly-formatted MB128 is actually full.
+;      they think that a freshly-formatted MB128 has no free space on it!
 ;
 ;      These library rountines count the 2 directory sectors in the total,
 ;      but they do not trust MB1_HEAD_USED, and always recalculate it.
@@ -106,8 +106,11 @@ MB1_FILE_NAME	=	$08			; ( 8) Filename.
 mb1_detected:	ds	1			; NZ if an MB128 has been found.
 mb1_retry_left:	ds	1
 mb1_base_bank:	ds	1			; BRAM_BANK or SLOT_BANK.
-mb1_sector_num:	ds	1
-mb1_file_count	=	mb1_sector_num		; Used at different times!
+
+mb1_sector_num:	ds	1			; For mb1_load_image & mb1_save_image.
+
+mb1_file_count:	ds	1			; For mb1_check_dir ...
+mb1_frag_count:	ds	1			; 0=full, 1=ok, 2+=fragmented
 
 mb1_directory	=	$6000			; 1024-bytes.
 
@@ -122,6 +125,7 @@ mb1_directory	=	$6000			; 1024-bytes.
 ; ****************************************************************************
 ;
 
+	if	0
 
 mb1_read_info:
 ;		bra	.ready
@@ -168,177 +172,6 @@ mb1_read_info:
 
 		
 
-
-		if	0
-
-		; Load up the directory.
-
-		jsr	mb1_load_dir		; Load the directory.
-		beq	.ok1
-		jmp	.finished
-
-.ok1:		PUTS	mb1_msg_got_dir
-
-		; Load up everything else.
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		stz	<__al
-		lda	#$64
-		sta	<__ah
-
-		lda	#$02			; Sector address.
-		ldx	#$FE			; Sector count.
-		jsr	mb1_read_data
-		beq	.ok2
-		jmp	.finished
-
-.fail:		phx
-		PUTS	.failed
-		plx
-		rts
-
-.ok2:		PUTS	.all_loaded
-
-
-		; Save the directory.
-
-		jsr	mb1_save_dir		; Save the directory.
-		beq	.ok9
-		jmp	.finished
-
-.ok9:		PUTS	.dir_saved
-
-		;
-		;
-		;
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		lda	#<$6400
-		sta	<__al
-		lda	#>$6400
-		sta	<__ah
-
-		lda	#<$0800
-		ldx	#>$0800
-		cly
-		jsr	mb1_csum_memory
-
-		lda	<__al
-		cmp	$6014
-		bne	.fail
-
-		lda	<__ah
-		cmp	$6015
-		bne	.fail
-
-		PUTS	.checksum_ok
-
-		;
-		;
-		;
-
-		lda	#<$6C00
-		sta	<__al
-		lda	#>$6C00
-		sta	<__ah
-
-		lda	#<$0800
-		ldx	#>$0800
-		cly
-		jsr	mb1_csum_memory
-
-		lda	<__al
-		cmp	$6024
-		bne	.fail
-
-		lda	<__ah
-		cmp	$6025
-		bne	.fail
-
-		PUTS	.checksum_ok
-
-		;
-		;
-		;
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		lda	#<$6400
-		sta	<__al
-		lda	#>$6400
-		sta	<__ah
-
-		lda	#$02			; Sector address.
-		ldx	#$04			; Sector count.
-		jsr	mb1_check_data
-
-		beq	.ok3
-		jmp	.finished
-
-.ok3:		PUTS	.chk_1st
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		lda	#<$6C00
-		sta	<__al
-		lda	#>$6C00
-		sta	<__ah
-
-		lda	#$06			; Sector address.
-		ldx	#$04			; Sector count.
-		jsr	mb1_check_data
-
-		beq	.ok4
-		jmp	.finished
-
-.ok4:		PUTS	.chk_2nd
-
-		;
-		;
-		;
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		lda	#<$6400
-		sta	<__al
-		lda	#>$6400
-		sta	<__ah
-
-		lda	#$0A			; Sector address.
-		ldx	#$04			; Sector count.
-		jsr	mb1_write_data
-
-		beq	.ok5
-		jmp	.finished
-
-.ok5:		PUTS	.write_ok
-
-		lda	mb1_base_bank		; Map in the directory bank.
-		tam3
-
-		lda	#<$6400
-		sta	<__al
-		lda	#>$6400
-		sta	<__ah
-
-		lda	#$0A			; Sector address.
-		ldx	#$04			; Sector count.
-		jsr	mb1_check_data
-
-		beq	.ok6
-		jmp	.finished
-
-.ok6:		PUTS	.write_match
-
-		endif
-
 		;
 		;
 		;
@@ -363,6 +196,11 @@ mb1_read_info:
 .chk_2nd:	db	" 2nd file matches original.",$0A,0
 .write_ok:	db	" Data write OK.",$0A,0
 .write_match:	db	" Data written matches original.",$0A,0
+
+	endif
+
+
+
 
 mb1_format:	dw	$0632 ; MB1_HEAD_CSUM
 		dw	$0002 ; MB1_HEAD_USED
@@ -914,6 +752,7 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		tam3
 
 		stz	mb1_file_count		; #files.
+		stz	mb1_frag_count		; #free-space fragments.
 
 		ldy	#12-1			; Compare the signature.
 .ident:		lda	mb1_directory + MB1_HEAD_IDENT,y
@@ -921,7 +760,6 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		bne	.invalid_file
 		dey
 		bpl	.ident
-
 
 		stz	<__ax + 0		; Calculate the # of sectors
 		lda	#>mb1_directory		; used, incl the directory.
@@ -943,7 +781,9 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		iny
 
 		cmp	<__bl			; Current minimum sector.
-		bcc	.invalid_file
+		beq	.contiguous
+		inc	mb1_frag_count		; #free-space fragments.
+.contiguous:	bcc	.invalid_file
 		bbs0	<__bh, .invalid_file	; Current minimum == $0100?
 		clc
 		adc	[__ax],y		; Add MB1_FILE_SIZE to ADDR.
@@ -987,11 +827,16 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		adc	#>(mb1_directory + 1024)
 		sta	.self_mod + 6		; Length-hi.
 		ora	.self_mod + 5
-		beq	.full
+		beq	.dir_full
 
 .self_mod:	tai	tos_zero, mb1_directory, $0400
 
-.full:		lda	#<(mb1_directory + 2)	; Generate the checksum.
+.dir_full:	lda	<__bh			; Is there free space at the
+		bne	.checksum		; end of the MB128?
+
+		inc	mb1_frag_count		; #free-space fragments.
+
+.checksum:	lda	#<(mb1_directory + 2)	; Generate the checksum.
 		sta	<__ax + 0
 		lda	#>(mb1_directory + 2)
 		sta	<__ax + 1
@@ -1070,57 +915,6 @@ mb1_fill_memory:pha				; Preserve fill value.
 ; Returns: __ax = Checksum value.
 ;
 
-		if	0
-
-mb1_csum_memory:sta	.self_mod + 1		; Save # of bytes.
-		stx	<__bl			; Save # of pages.
-		sty	<__bh			; Save # of 64KB.
-		cly
-
-		txa				; Test # of pages.
-		cla				; Set lo-byte of checksum.
-		clx				; Set hi-byte of checksum.
-		beq	.next_64kb
-
-.page_loop:	clc				; Update checksum.
-		adc	[__ax],y
-		bcc	.next_byte
-		inx
-
-.next_byte:	iny				; Update offset.
-		bne	.page_loop
-		inc	<__ax + 1
-		bpl	.next_page
-
-		pha				; Checksums that cross this
-		tma3                            ; boundary are page-aligned
-		inc	a                       ; or else we'd need to map
-		tam3                            ; in two new banks.
-		lda	#$60
-		sta	<__ax + 1
-		pla
-
-.next_page:	dec	<__bl
-		bne	.page_loop
-.next_64kb:	dec	<__bh			; Is there a full 64KB block
-		bpl	.page_loop		; still left to checksum?
-		bra	.self_mod		; Any remaining data to do?
-
-.byte_loop:	clc				; Checksum the final 1..255
-		adc	[__ax],y		; bytes.
-		bcc	.skip2
-		inx
-.skip2:		iny
-.self_mod:	cpy	#00
-		bne	.byte_loop
-
-.finished:	sta	<__ax + 0		; Save the checksum.
-		stx	<__ax + 1
-		rts
-
-
-		else
-
 mb1_csum_memory:sty	<__bh			; Save # of 64KB.
 		inx				; +1 for bytes in last page.
 		stx	<__bl			; Save # of pages.
@@ -1161,7 +955,6 @@ mb1_csum_memory:sty	<__bh			; Save # of 64KB.
 		pla
 
 		bra	.next_byte
-		endif
 
 
 

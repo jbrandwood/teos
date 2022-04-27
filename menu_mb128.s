@@ -24,7 +24,7 @@
 
 msg_m128_init:	db	"%>%p5%xl",0
 		db	$0C
-		db	" MEMORY BASE SD: Initializing ... "
+		db	" MEMORY BASE SD: Initializing ...    "
 		db	"%<",$0A,$0A,$0A,0
 
 msg_m128_none:	db	" Memory Base 128 not detected!",$0A,0
@@ -33,21 +33,44 @@ msg_m128_none:	db	" Memory Base 128 not detected!",$0A,0
 		;
 		;
 
+M128_SAVE	=	0
+M128_LOAD	=	1
+M128_DEL	=	2
+M128_FRAG	=	3
+
 tbl_m128_title:	dw	msg_m128_save
 		dw	msg_m128_load
+		dw	msg_m128_del
+		dw	msg_m128_frag
 
 cls_m128_save:	db	$0C
 msg_m128_save:	db	"%>%p5%xl",0
 		db	"%x",0
 		db	"%y",0
-		db	" MEMORY BASE SD: Copy MB128 to SD "
+		db	" MEMORY BASE SD: Copy the MB128 to SD "
 		db	"%<%p0",$0A,$0A,$0A,0
 
 cls_m128_load:	db	$0C
 msg_m128_load:	db	"%>%p5%xl",0
 		db	"%x",0
 		db	"%y",0
-		db	" MEMORY BASE SD: Copy SD to MB128 "
+		db	" MEMORY BASE SD: Copy SD to the MB128 "
+		db	"%<%p0",$0A,$0A,$0A,0
+
+cls_m128_del:	db	$0C
+msg_m128_del:	db	"%>%p5%xl",0
+		db	"%x",0
+		db	"%y",0
+		db	" MEMORY BASE SD: Delete file in MB128 "
+		db	"%<%p0",$0A,$0A,$0A,0
+
+cls_m128_frag:	db	$0C
+msg_m128_frag:	db	"%>%p5%xl",0
+		db	"%x",0
+		db	"%y",0
+;		db	" MEMORY BASE SD: Delete file in MB128"
+;		db	" MEMORY BASE SD: Defragment MB128     "
+		db	" MEMORY BASE SD: Defragment the MB128 "
 		db	"%<%p0",$0A,$0A,$0A,0
 
 		;
@@ -67,10 +90,8 @@ msg_m128_lhs:	db	"%<%xl",0
 
 		db	"%x",1
 		db	"%y",21
-		db	"%p0"
-;		db	"Console "
-		db	"MB128   "
 		db	"%p2"
+		db	"%>MB128   %<"
 		db	"%r"
 		dw	tos_m128_files + 0
 		db	"Files: %3hu",$0A
@@ -101,11 +122,10 @@ msg_m128_rhs:	db	"%<%xl",0
 
 		db	"%x",21
 		db	"%y",21
-		db	"%p0"
+		db	"%p2"
 		db	"%r"
 		dw	tos_m128_slot
-		db	"Slot #%hu "
-		db	"%p2"
+		db	"%>Slot #%hu %<"
 		db	"%r"
 		dw	tos_m128_files + 2
 		db	"Files: %3hu",$0A
@@ -123,10 +143,44 @@ msg_m128_rhs:	db	"%<%xl",0
 		;
 		;
 
-tbl_m128_help:	dw	hlp_copy_mb128		; Help if box is selected.
-		dw	hlp_copy_mslot
+msg_m128_1frag:	db	"%>%xl",22
+		db	"%x",22
+		db	"%y",5
+		db	"%p3"
+;		db	"------------------",$0A
+		db	"Congratulations!",$0A,$0A,$0A,$0A
+		db	"MB128 free space",$0A,$0A
+		db	"is defragmented.",$0A,$0A
+		db	"%<%xl",0
+		db	0
 
-hlp_copy_mb128:	db	"%<%p5%xl",0
+msg_m128_nfrag:	db	"%>%xl",22
+		db	"%x",22
+		db	"%y",5
+		db	"%p3"
+;		db	"------------------",$0A
+		db	"MB128 free space",$0A,$0A
+		db	"is fragmented in",$0A,$0A
+		db	"%r"
+		dw	tos_m128_frags
+		db	"%p2%hu%p3"
+		db	" blocks.",$0A,$0A,$0A,$0A
+		db	"Defragment MB128",$0A,$0A
+		db	"to maximize size",$0A,$0A
+		db	"of future files.",$0A,$0A
+		db	"%<%xl",0
+		db	0
+
+		;
+		;
+		;
+
+tbl_m128_help:	dw	hlp_m128_save		; Help if box is selected.
+		dw	hlp_m128_load
+		dw	hlp_m128_del
+		dw	hlp_m128_frag
+
+hlp_m128_save:	db	"%<%p5%xl",0
 		db	"%x",0
 		db	"%y",24
 		db	"  SEL%p6:Chg Menu%p5  <>%p6:Chg Slot%p5  \\|%p6:Scroll %p5",$0A
@@ -135,7 +189,7 @@ hlp_copy_mb128:	db	"%<%p5%xl",0
 		db	"%p6:Chg Mode%p5"
 		db	" "
 		db	28,29
-		db	"%p6:Copy MB128 to Slot %p5",$0A
+		db	"%p6:Copy MB128 to Slot  %p5",$0A
 		db	"%y",23
 		db	"%p0"
 
@@ -164,7 +218,7 @@ hlp_copy_mb128:	db	"%<%p5%xl",0
 
 		;
 
-hlp_copy_mslot:	db	"%<%p5%xl",0
+hlp_m128_load:	db	"%<%p5%xl",0
 		db	"%x",0
 		db	"%y",24
 		db	"  SEL%p6:Chg Menu%p5  <>%p6:Chg Slot%p5  \\|%p6:Scroll %p5",$0A
@@ -173,7 +227,7 @@ hlp_copy_mslot:	db	"%<%p5%xl",0
 		db	"%p6:Chg Mode%p5"
 		db	" "
 		db	28,29
-		db	"%p6:Copy Slot to MB128 %p5",$0A
+		db	"%p6:Copy Slot to MB128  %p5",$0A
 		db	"%y",23
 		db	"%p0"
 
@@ -198,6 +252,38 @@ hlp_copy_mslot:	db	"%<%p5%xl",0
 		db	"<<",$0A
 		db	"<<",$0A
 
+		db	0
+
+		;
+
+hlp_m128_del:	db	"%<%p5%xl",0
+		db	"%x",0
+		db	"%y",24
+		db	" SEL%p6:Chg Menu%p5  <>%p6:Chg Slot%p5  \\|%p6:Chg File%p5",$0A
+		db	"   "
+		db	30,31
+		db	"%p6:Chg Mode%p5"
+		db	" "
+		db	28,29
+		db	"%p6:Delete File in MB128 %p5",$0A
+		db	"%y",23
+		db	"%p0"
+		db	0
+
+		;
+
+hlp_m128_frag:	db	"%<%p5%xl",0
+		db	"%x",0
+		db	"%y",24
+		db	"  SEL%p6:Chg Menu%p5  <>%p6:Chg Slot%p5  \\|%p6:Scroll %p5",$0A
+		db	"   "
+		db	30,31
+		db	"%p6:Chg Mode%p5"
+		db	" "
+		db	28,29
+		db	"%p6:Defragment the MB128 %p5",$0A
+		db	"%y",23
+		db	"%p0"
 		db	0
 
 		;
@@ -248,6 +334,7 @@ tos_m128_slot:	ds	1
 tos_m128_mode:	ds	1
 tos_m128_focus:	ds	1			; Which side is focused?
 
+tos_m128_frags:	ds	2*2			; # of frags on LHS/RHS.
 tos_m128_files:	ds	2*2			; # of files on LHS/RHS.
 tos_m128_least:	ds	2*2			; Minimum LHS/RHS file choice.
 tos_m128_chosen:ds	2*2			; Current LHS/RHS file choice.
@@ -257,6 +344,8 @@ tos_m128_first:	ds	1
 tos_m128_choice:ds	1
 tos_m128_index:	ds	1
 tos_m128_hilite:ds	1
+
+tos_m128_fname:	ds	2			; Ptr to selected name in MB128.
 
 		code
 
@@ -282,16 +371,12 @@ tos_m128_menu:	stz	tos_m128_mode
 
 		jmp	tos_hucard_menu
 
-tos_m128_menu2:	jsr	clear_screen
-
-;		PUTS	msg_bram_title
-;		PUTS	mb1_msg_init
+tos_m128_menu2:
+;		jsr	clear_screen
 
 		; Verify contents of BRAM_BANK.
 
 		; Load up the MB128 directory.
-
-;		PUTS	mb1_msg_rdd_now
 
 		lda	#BRAM_BANK
 		sta	mb1_base_bank
@@ -322,18 +407,7 @@ tos_m128_menu2:	jsr	clear_screen
 .slot_info:	ldx	#2			; Save SLOT info.
 		jsr	tos_m128_info
 
-.if 0
-		lda	#BRAM_BANK
-		tam3
-
-		lda	#<mb1_directory
-		ldx	#>mb1_directory
-		jsr	show_page
-
-		jmp	!-
-.endif
-
-;
+		; Has the mode just changed?
 
 .new_mode:	ldx	tos_m128_mode		; Lookup which side has focus.
 		lda	.tbl_focus_side,x
@@ -344,8 +418,8 @@ tos_m128_menu2:	jsr	clear_screen
 		sta	tos_m128_chosen + 0	; Set current selection.
 		sta	tos_m128_chosen + 2
 
-		cpx	#3			; Delete File mode?
-		beq	.show_title
+		cpx	#M128_DEL		; Delete File mode?
+		bcs	.show_title
 
 		ldx	#2
 .calc_minimum:	lda	#8			; Start at the last file
@@ -383,7 +457,7 @@ tos_m128_menu2:	jsr	clear_screen
 		; Display contents of BRAM_BANK.
 
 .show_m128:	ldx	tos_m128_mode
-		cpx	#3
+		cpx	#M128_DEL
 		bne	.m128_box_color
 
 		stz	tos_hilite_idx		; Reset hilite pulsing.
@@ -402,10 +476,23 @@ tos_m128_menu2:	jsr	clear_screen
 		; Display contents of SLOT_BANK.
 
 		lda	tos_m128_mode
-		cmp	#3
-		bne	.show_slot
+		cmp	#M128_DEL
+		bcc	.show_slot
+		bne	.show_frag
 
-		PUTS	msg_blank_rhs
+.show_null:	PUTS	msg_blank_rhs		; RHS shows blank.
+		bra	.wait_input
+
+.show_frag:	PUTS	msg_blank_rhs		; RHS shows fragmentation.
+
+		lda	tos_m128_frags
+		cmp	#2
+		bcs	.show_nfrag
+
+		PUTS	msg_m128_1frag		; Defragmented!
+		bra	.wait_input
+
+.show_nfrag:	PUTS	msg_m128_nfrag		; Fragmented!
 		bra	.wait_input
 
 .show_slot:	ldx	tos_m128_mode
@@ -452,9 +539,11 @@ tos_m128_menu2:	jsr	clear_screen
 
 		lda	tos_m128_mode
 		inc	a
-;		and	#3
-		and	#1
-		sta	tos_m128_mode
+		and	#3
+;		cmp	#3
+;		bcc	.save_mode
+;		cla
+.save_mode:	sta	tos_m128_mode
 		jmp	.new_mode
 
 		; Change Save Slot.
@@ -521,11 +610,13 @@ tos_m128_menu2:	jsr	clear_screen
 
 .tbl_funcs:	dw	func_m128_save
 		dw	func_m128_load
+		dw	func_m128_del
+		dw	func_m128_frag
 
-.tbl_box_lhs:	db	1,1,0,0			; Palette for box per mode.
-.tbl_box_rhs:	db	0,1,1,0			; Palette for box per mode.
-.tbl_focus_side:db	0,4,2,0			; Focused side per mode.
-.tbl_min_choice:db	0,0,0,1			; Minimum choice per mode.
+.tbl_box_lhs:	db	1,0,0,1			; Palette for box per mode.
+.tbl_box_rhs:	db	0,1,0,0			; Palette for box per mode.
+.tbl_focus_side:db	0,2,0,0			; Focused side per mode.
+.tbl_min_choice:db	0,0,1,0			; Minimum choice per mode.
 
 
 
@@ -537,15 +628,19 @@ tos_m128_menu2:	jsr	clear_screen
 ; N.B. There can be a maximum of 63 files in the MB128.
 ;
 
-tos_m128_info:	lda	mb1_file_count
+tos_m128_info:	lda	mb1_frag_count
+		sta	tos_m128_frags + 0,x
+		stz	tos_m128_frags + 1,x
+
+		lda	mb1_file_count
 		sta	tos_m128_files + 0,x
 		stz	tos_m128_files + 1,x
 
-.m128_info:	sec
-		cla
+		sec
+		lda	#<256
 		sbc	mb1_directory + MB1_HEAD_USED + 0
 		sta	tos_m128_free + 0,x
-		lda	#1
+		lda	#>256
 		sbc	mb1_directory + MB1_HEAD_USED + 1
 		sta	tos_m128_free + 1,x
 
@@ -573,7 +668,7 @@ tos_m128_show:	lda	tos_m128_chosen,x	; Decide which file to display
 		sta	tos_m128_hilite		; Set hilite color to pulsing.
 
 		lda	tos_m128_mode		; Only hilite a file in Delete.
-		cmp	#$3
+		cmp	#2
 		beq	.first_in_m128
 
 		stz	tos_m128_hilite		; Set hilite color to normal.
@@ -659,15 +754,24 @@ tos_m128_show:	lda	tos_m128_chosen,x	; Decide which file to display
 .show_lhs_arrow:tya
 		jsr	tos_print_msg
 
-.show_name:	lda	#MB1_FILE_NAME		; Display the file name & size.
+.file_name:	lda	#MB1_FILE_NAME		; Display the file name & size.
 		clc
 		adc	<__bp + 0
 		sta	<__di + 0
+		tax
 		cla
 		adc	<__bp + 1
 		sta	<__di + 1
+		tay
 
-		PUTS	msg_m128_name
+		lda	tos_tty_tile + 1	; Is this entry in the hilite
+		and	#$F0			; color?
+		beq	.show_name
+
+		stx	tos_m128_fname + 0	; Save the addr of the selected
+		sty	tos_m128_fname + 1	; filename.
+
+.show_name:	PUTS	msg_m128_name
 
 		pla				; Restore next file pointer.
 		ply
@@ -738,8 +842,7 @@ func_m128_save:	PUTS	cls_m128_save		; Confirm the operation.
 		dw	tos_m128_slot
 		db	"%y",11
 		db	"  Please press %p1RUN%p0 to confirm that you",$0A
-;		db	"  want to copy the MB128 to SD Slot %02hu!",$0A
-		db	"  want to copy the MB128 to SD Slot #%hu!",$0A
+		db	"  want to copy the MB128 to SD Slot #%hu",$0A
 		db	"%y",24
 		db	"%x",12
 		db	"%p5RUN%p6:Confirm copy",$0A
@@ -795,8 +898,7 @@ func_m128_load:	PUTS	cls_m128_load
 		dw	tos_m128_slot
 		db	"%y",11
 		db	"  Please press %p1RUN%p0 to confirm that you",$0A
-;		db	"  want to copy SD Slot %02hu to the MB128!",$0A
-		db	"  want to copy SD Slot #%hu to the MB128!",$0A
+		db	"  want to copy SD Slot #%hu to the MB128",$0A
 		db	"%y",24
 		db	"%x",12
 		db	"%p5RUN%p6:Confirm copy",$0A
@@ -806,5 +908,175 @@ func_m128_load:	PUTS	cls_m128_load
 
 .msg_save:	db	" Saving files to MB128.",$0A,$0A,0
 
-msg_m128_fail:	db	" MB128 transfer failed!",$0A,$0A,0
-msg_m128_done:	db	" MB128 transfer completed!",$0A,$0A,0
+msg_m128_fail:	db	" MB128 operation failed!",$0A,$0A,0
+msg_m128_done:	db	" MB128 operation completed!",$0A,$0A,0
+
+
+
+; ***************************************************************************
+; ***************************************************************************
+;
+; func_m128_del - Delete a file from MB128.
+;
+
+func_m128_del:	lda	tos_m128_files		; Are there any files in MB128?
+		bne	.wipe
+		rts
+
+.wipe:		PUTS	cls_m128_del
+
+		lda	tos_m128_fname + 0	; Get the addr of the selected
+		sta	<__di + 0		; filename.
+		lda	tos_m128_fname + 1
+		sta	<__di + 1
+
+		PUTS	.msg_warning
+
+.wait_input:	stz	joytrg			; Wait for input.
+.wait_loop:	jsr	wait_vsync_usb
+		lda	joytrg
+		beq	.wait_loop
+		bit	#JOY_RUN
+		bne	.confirmed
+		bit	#JOY_B2
+		beq	.wait_input
+		rts
+
+.confirmed:	PUTS	cls_m128_del		; Inform the user.
+
+		lda	#BRAM_BANK		; Wipe the file from the MB128
+		tam3                            ; image in memory.
+
+		lda	#$73			; TII instruction.
+		sta	<__al
+		lda	#$60			; RTS instruction.
+		sta	<__dh
+
+.copy_data:	sec				; Use the addr of the selected
+		lda	tos_m128_fname + 0      ; filename as the destination.
+		sbc	#MB1_FILE_NAME
+		sta	<__bh + 0
+		lda	tos_m128_fname + 1
+		sbc	#0
+		sta	<__bh + 1
+
+		clc				; Use the addr of the next MB128
+		cly				; file as the source.
+		lda	#16
+		adc	<__bh + 0
+		sta	<__ah + 0
+		cla
+		adc	<__bh + 1
+		sta	<__ah + 1
+
+		sec				; Calc length from the end of
+		lda	#<(mb1_directory + 1024); directory.
+		sbc	<__ah + 0
+		sta	<__ch + 0
+		lda	#>(mb1_directory + 1024)
+		sbc	<__ah + 1
+		sta	<__ch + 1
+		ora	<__ch + 0
+		beq	.fill_free
+
+		jsr	__al			; Execute TII instruction.
+
+.fill_free:	tai	tos_zero, mb1_directory + 1024 - 16, 16
+
+		PUTS	mb1_msg_wrd_now
+
+		lda	#BRAM_BANK		; Update the MB128 directory.
+		sta	mb1_base_bank
+		jsr	mb1_save_dir
+		bne	.failed
+
+		PUTS	mb1_msg_wrd_ok
+		PUTS	msg_m128_done
+		bra	.result
+
+.failed:	PUTS	msg_m128_fail
+
+.result:	PUTS	msg_press_a_key
+		jsr	wait_for_key
+
+.finished:	rts
+
+.msg_warning:	db	"%y",11
+		db	"  Please press %p1RUN%p0 to confirm that you",$0A
+		db	"   want to delete the file ",$22,"%p2%8c%p0",$22,"",$0A
+		db	"%y",24
+		db	"%x",11
+		db	"%p5RUN%p6:Confirm delete",$0A
+		db	"%x",12
+		db	"%p5",30,31,"%p6:Cancel delete",$0A
+		db	"%p0%y",14,0
+
+
+
+; ***************************************************************************
+; ***************************************************************************
+;
+; func_m128_frag - Defragment Free Space on the MB128.
+;
+
+func_m128_frag:	lda	tos_m128_frags
+		cmp	#2
+		bcs	.defrag
+
+		rts
+
+.defrag:	PUTS	cls_m128_frag
+
+		lda	tos_m128_fname + 0	; Get the addr of the selected
+		sta	<__di + 0		; filename.
+		lda	tos_m128_fname + 1
+		sta	<__di + 1
+
+		PUTS	.msg_warning
+
+.wait_input:	stz	joytrg			; Wait for input.
+.wait_loop:	jsr	wait_vsync_usb
+		lda	joytrg
+		beq	.wait_loop
+		bit	#JOY_RUN
+		bne	.confirmed
+		bit	#JOY_B2
+		beq	.wait_input
+		rts
+
+.confirmed:	PUTS	cls_m128_frag		; Inform the user.
+
+		PUTS	.msg_load
+
+		lda	#BRAM_BANK		; Load the MB128 image.
+		jsr	mb1_load_image
+		bne	.failed
+
+		PUTS	.msg_save
+
+		lda	#BRAM_BANK		; Save the MB128 image.
+		jsr	mb1_save_image
+		bne	.failed
+
+		PUTS	msg_m128_done
+		bra	.result
+
+.failed:	PUTS	msg_m128_fail
+
+.result:	PUTS	msg_press_a_key
+		jsr	wait_for_key
+
+.finished:	rts
+
+.msg_warning:	db	"%y",11
+		db	"  Please press %p1RUN%p0 to confirm that you",$0A
+		db	"  want to defragment MB128 free space!",$0A
+		db	"%y",24
+		db	"%x",9
+		db	"%p5RUN%p6:Confirm defragment",$0A
+		db	"%x",10
+		db	"%p5",30,31,"%p6:Cancel defragment",$0A
+		db	"%p0%y",14,0
+
+.msg_load:	db	" Loading all MB128 files.",$0A,$0A,0
+.msg_save:	db	" Saving files to MB128.",$0A,$0A,0
