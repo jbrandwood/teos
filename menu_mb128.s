@@ -371,7 +371,11 @@ tos_m128_menu:	stz	tos_m128_mode
 
 		jmp	tos_hucard_menu
 
-tos_m128_menu2:
+tos_m128_menu2:	stw	#$0000,VCE_CTA
+		stw	#red464_palette,__ax
+		ldx	#8
+		jsr	copy_palettes
+
 ;		jsr	clear_screen
 
 		; Verify contents of BRAM_BANK.
@@ -518,6 +522,11 @@ tos_m128_menu2:
 
 		bit	#JOY_SEL
 		beq	.same_menu
+
+		stw	#$0000,VCE_CTA
+		stw	#cpc464_palette,__ax
+		ldx	#8
+		jsr	copy_palettes
 		jmp	tos_hucard_menu
 
 .same_menu:	bit	#JOY_L
