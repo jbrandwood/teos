@@ -417,7 +417,7 @@ mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
 		sbc	mb1_sector_num
 		beq	.fix_csum
 		tax				; # of sectors to clear.
-		cla				; Value to write.
+		lda	#$FF			; Value to write.
 		jsr	mb1_fill_memory
 
 .fix_csum:	jsr	mb1_check_dir		; Update directory checksum.
