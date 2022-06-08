@@ -15,7 +15,7 @@
 
 
 		bank	3
-;		org	$E000
+
 
 
 ; ***************************************************************************
@@ -479,13 +479,19 @@ wait_vsync_usb:	pha
 
 .got_usb:	TED_USB_RD_BYTE
 		cmp	#'*'
-		bne	.wait
-
-		TED_USB_RD_BYTE
+		beq	.got_star
+.had_star:	ldx	#0			; Was this preceded by a '*'?
+		beq	.ignore
 		cmp	#'t'
 		beq	.got_t
 		cmp	#'g'
 		beq	.got_g
+.ignore:	stz	.had_star + 1		; Self-modifying code!
+		bra	.wait
+
+; turbo-usb2.exe is sending us a command!
+
+.got_star:	sta	.had_star + 1		; Self-modifying code!
 		bra	.wait
 
 ; turbo-usb2.exe wants to know if we're listening!

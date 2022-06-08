@@ -386,6 +386,8 @@ tos_m128_menu2:	stw	#$0000,VCE_CTA
 		sta	mb1_base_bank
 
 		jsr	mb1_load_dir		; Load the directory.
+		bne	.bad_m128
+		jsr	mb1_check_dir		; Verify the directory.
 		beq	.m128_info
 
 .bad_m128:	lda	#BRAM_BANK		; Format the MB128 image.
@@ -859,8 +861,8 @@ func_m128_save:	PUTS	cls_m128_save		; Confirm the operation.
 		db	"%p5",30,31,"%p6:Cancel copy",$0A
 		db	"%p0%y",14,0
 
-.msg_load:	db	" Loading all MB128 files.",$0A,$0A,0
-.msg_save:	db	" Saving files to SD card.",$0A,$0A,0
+.msg_load:	db	" Loading data from MB128",0
+.msg_save:	db	" Saving data to SD card.",$0A,$0A,0
 
 
 
@@ -886,6 +888,12 @@ func_m128_load:	PUTS	cls_m128_load
 		rts
 
 .confirmed:	PUTS	cls_m128_load		; Inform the user.
+
+		PUTS	.msg_load
+
+		lda	#SLOT_BANK		; Load image from the SD card.
+		jsr	tos_load_m128
+		bne	.failed
 
 		PUTS	.msg_save
 
@@ -915,7 +923,9 @@ func_m128_load:	PUTS	cls_m128_load
 		db	"%p5",30,31,"%p6:Cancel copy",$0A
 		db	"%p0%y",14,0
 
-.msg_save:	db	" Saving files to MB128.",$0A,$0A,0
+
+.msg_load:	db	" Loading data from SD card.",$0A,$0A,0
+.msg_save:	db	" Saving data to MB128",0
 
 msg_m128_fail:	db	" MB128 operation failed!",$0A,$0A,0
 msg_m128_done:	db	" MB128 operation completed!",$0A,$0A,0
@@ -1000,6 +1010,7 @@ func_m128_del:	lda	tos_m128_files		; Are there any files in MB128?
 		bne	.failed
 
 		PUTS	mb1_msg_wrd_ok
+		PUTS	mb1_msg_lf
 		PUTS	msg_m128_done
 		bra	.result
 
@@ -1057,14 +1068,14 @@ func_m128_frag:	lda	tos_m128_frags
 
 		PUTS	.msg_load
 
-		lda	#BRAM_BANK		; Load the MB128 image.
-		jsr	mb1_load_image
+		lda	#BRAM_BANK		; Load all the MB128 files,
+		jsr	mb1_load_files		; verifying their integrity.
 		bne	.failed
 
 		PUTS	.msg_save
 
-		lda	#BRAM_BANK		; Save the MB128 image.
-		jsr	mb1_save_image
+		lda	#BRAM_BANK		; Save all the MB128 files,
+		jsr	mb1_save_files		; verifying their integrity.
 		bne	.failed
 
 		PUTS	msg_m128_done

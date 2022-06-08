@@ -68,10 +68,11 @@ MB1_NUM_RETRIES	=	3			; Retry count for operations.
 
 MB1_OK		=	$00
 MB1_ERR_INIT	=	$A0
-MB1_ERR_CSUM	=	$A1
-MB1_ERR_INVALID	=	$A2
-MB1_ERR_READ	=	$A3
-MB1_ERR_WRITE	=	$A4
+MB1_ERR_IDENT	=	$A1
+MB1_ERR_CSUM	=	$A2
+MB1_ERR_INVALID	=	$A3
+MB1_ERR_READ	=	$A4
+MB1_ERR_WRITE	=	$A5
 
 ; 1st entry in MB128's 1024-byte directory.
 ;
@@ -118,94 +119,15 @@ mb1_directory	=	$6000			; 1024-bytes.
 
 
 
-
-
-
 ; ****************************************************************************
 ; ****************************************************************************
 ;
-
-	if	0
-
-mb1_read_info:
-;		bra	.ready
-
-		if	0
-		lda	#BRAM_BANK		; Set up the directory bank.
-		sta	mb1_base_bank		; Set the image base bank.
-		jsr	mb1_load_dir		; Load the directory.
-		beq	.ok0
-		bne	.fail
-		endif
-
-		lda	#BRAM_BANK		; Set up the directory bank.
-		jsr	mb1_load_image
-		beq	.ok0
-		jmp	.finished
-
-.fail:		phx
-		PUTS	.failed
-
-		PUTS	msg_press_a_key
-		jsr	wait_for_key
-
-		plx
-		rts
-
-.ok0:		PUTS	.all_loaded
-
-		if	0
-
-		lda	#1
-		sta	tos_m128_slot
-		lda	#BRAM_BANK		; Set up the directory bank.
-		jsr	tos_save_m128
-		bne	.fail
-
-.ok1:		PUTS	.write_ok
-
-		endif
-
-		PUTS	msg_press_a_key
-		jsr	wait_for_key
-
-
-		
-
-		;
-		;
-		;
-
-.finished:
-		ldx	#MB1_OK			; Return MB128_OK, i.e. found!
-
-		cpx	#0
-		rts
-
-
-
-.dir_saved:	db	" MB128 directory saved.",$0A,0
-.dir_loaded:	db	" MB128 directory loaded.",$0A,0
-.all_loaded:	db	" MB128 everything loaded.",$0A,0
-
-.checksum_ok:	db	" MB128 checksum OK.",$0A,0
-
-.failed:	db	" MB128 checksum failed!",$0A,0
-
-.chk_1st:	db	" 1st file matches original.",$0A,0
-.chk_2nd:	db	" 2nd file matches original.",$0A,0
-.write_ok:	db	" Data write OK.",$0A,0
-.write_match:	db	" Data written matches original.",$0A,0
-
-	endif
-
-
-
+; Messages.
+;
 
 mb1_format:	dw	$0632 ; MB1_HEAD_CSUM
 		dw	$0002 ; MB1_HEAD_USED
-mb1_signature:	db	$D2, $D3, $D8, $CD, $DE, $B0, $BD, $31, $32, $38, 0, 0
-
+mb1_signature:	db	$D2,$D3,$D8,$CD,$DE,$B0,$BD,$31,$32,$38,$00,$00
 
 mb1_msg_init:	db	$0C
 		db	"%>%p5"
@@ -237,6 +159,208 @@ mb1_msg_rd_fail:db	$0A
 		db	" Load failed!",$0A,0
 mb1_msg_wr_fail:db	$0A
 		db	" Save failed!",$0A,0
+
+mb1_msg_dot:	db	".",0
+mb1_msg_lfsp:	db	$0A," ",0
+mb1_msg_lf:	db	$0A,0
+
+
+
+; ****************************************************************************
+; ****************************************************************************
+;
+; mb1_load_image - Load up the entire contents of the MB128 into memory.
+;
+; Args: A = bank # of image (uses 16 contiguous banks)
+; Uses: mb1_directory address in mb1_base_bank.
+; Uses: __bp = Directory ptr.
+;
+; Returns: X = MB1_OK (and Z flag) or an error code.
+;
+; N.B. This loads the raw image contents with no attempt to fix bad file data!
+;
+
+mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
+
+;		PUTS	cls_m128_save
+;		PUTS	mb1_msg_rdd_now
+
+		jsr	mb1_load_dir		; Load the directory & verify
+		beq	.got_dir		; that it makes sense.
+
+		cpx	#MB1_ERR_IDENT		; Is the MB128 unformatted?
+		bne	.show_load_err
+
+		lda	mb1_base_bank		; Create a blank image if the
+		jmp	mb1_new_image		; MB128 is unformatted.
+
+.got_dir:
+;		PUTS	mb1_msg_rdd_ok
+
+		cla				; Write an invalid directory
+		sta	mb1_sector_num		; to the image to mark the
+		jsr	mb1_image_addr		; file contents as trashed.
+
+		tai	tos_zero, mb1_directory + MB1_HEAD_IDENT, 12
+
+		lda	#2			; Sector #.
+.block_loop:	pha
+
+		lda	#MB1_NUM_RETRIES	; Each block gets the full
+		sta	mb1_retry_left		; number of retries.
+
+.block_retry:	pla				; Sector #.
+		pha
+		sta	mb1_sector_num
+		jsr	mb1_image_addr		; Calculate address in image.
+		ldx	#2			; Sector Count.
+		jsr	mb1_read_data		; Load the file's data.
+		bne	.block_load_err
+
+		pla				; Sector #.
+		pha
+		jsr	mb1_image_addr		; Calculate address in image.
+		ldx	#2			; Sector Count.
+		jsr	mb1_check_data		; Read again to confirm data.
+		beq	.block_load_ok
+
+.block_load_err:dec	mb1_retry_left		; Timeout?
+		bne	.block_retry		; Timeout!
+
+		ldx	#MB1_ERR_READ
+
+.show_load_err:	phx
+		PUTS	mb1_msg_rd_fail
+		plx
+
+		rts
+
+.block_load_ok:	pla				; Sector #.
+		pha
+		dec	a
+		dec	a
+		and	#$3F
+		bne	.next_block
+		PUTS	mb1_msg_lfsp
+.next_block:	PUTS	mb1_msg_dot
+
+		pla				; Sector #.
+		inc	a
+		inc	a
+		cmp	#2			; Wrap and load directory.
+		bne	.block_loop
+
+		PUTS	mb1_msg_lf
+		PUTS	mb1_msg_lf
+		PUTS	mb1_msg_rdd_ok
+		PUTS	mb1_msg_rdf_ok
+		PUTS	mb1_msg_lf
+
+		ldx	#MB1_OK			; Return MB128_OK.
+
+.finished:	txa				; Set the N & Z result flags.
+		rts
+
+
+
+; ****************************************************************************
+; ****************************************************************************
+;
+; mb1_save_image - Save the entire contents of memory to the MB128.
+;
+; Args: mb1_base_bank = bank # of image (uses 16 contiguous banks)
+; Uses: mb1_directory
+; Uses: __bp = Directory ptr.
+;
+; Returns: X = MB1_OK (and Z flag) or an error code.
+;
+; N.B. This saves the raw image contents with no attempt to fix bad file data!
+;
+
+mb1_save_image:	sta	mb1_base_bank		; Set the image base bank.
+		tam3
+
+;		PUTS	cls_m128_load
+
+		ldy	#12-1			; Compare the signature.
+.ident:		lda	mb1_directory + MB1_HEAD_IDENT,y
+		cmp	mb1_signature,y
+		bne	.bad_ident
+		dey
+		bpl	.ident
+		bra	.got_dir
+
+.bad_ident:	lda	mb1_base_bank		; Create a blank image if the
+		jsr	mb1_new_image		; image is unformatted.
+
+.got_dir:	cla				; Write an invalid directory
+		sta	mb1_sector_num		; to the MB128 to mark the
+		jsr	mb1_image_addr		; file contents as trashed.
+
+		tai	tos_zero, mb1_directory + MB1_HEAD_IDENT, 12
+
+		ldx	#2			; Sector Count.
+		jsr	mb1_write_data		; Wipe out old directory data.
+
+		tii	mb1_signature, mb1_directory + MB1_HEAD_IDENT, 12
+
+		lda	#2			; Sector #.
+.block_loop:	pha
+
+		lda	#MB1_NUM_RETRIES	; Each file gets the full
+		sta	mb1_retry_left		; number of retries.
+
+.block_retry:	pla				; Sector #.
+		pha
+		sta	mb1_sector_num		; Use sector # in directory.
+		jsr	mb1_image_addr		; Calculate address in image.
+		ldx	#2			; Sector Count.
+		jsr	mb1_write_data		; Save the block's data.
+		bne	.block_save_err
+
+		pla				; Sector #.
+		pha
+		jsr	mb1_image_addr		; Calculate address in image.
+		ldx	#2			; Sector Count.
+		jsr	mb1_check_data		; Check to confirm the write.
+		beq	.block_save_ok
+
+.block_save_err:dec	mb1_retry_left		; Timeout?
+		bne	.block_retry		; Timeout!
+
+		ldx	#MB1_ERR_WRITE
+
+.show_save_err:	phx
+		PUTS	mb1_msg_wr_fail
+		plx
+
+		rts
+
+.block_save_ok:	pla				; Sector #.
+		pha
+		dec	a
+		dec	a
+		and	#$3F
+		bne	.next_block
+		PUTS	mb1_msg_lfsp
+.next_block:	PUTS	mb1_msg_dot
+
+		pla				; Sector #.
+		inc	a
+		inc	a
+		cmp	#2			; Wrap and save directory.
+		bne	.block_loop
+
+		PUTS	mb1_msg_lf
+		PUTS	mb1_msg_lf
+		PUTS	mb1_msg_wrf_ok
+		PUTS	mb1_msg_wrd_ok
+		PUTS	mb1_msg_lf
+
+		ldx	#MB1_OK			; Return MB128_OK.
+
+.finished:	txa				; Set the N & Z result flags.
+		rts
 
 
 
@@ -275,7 +399,7 @@ mb1_new_image:	sta	mb1_base_bank		; Set the image base bank.
 ; ****************************************************************************
 ; ****************************************************************************
 ;
-; mb1_load_image - Load up the entire contents of the MB128 into memory.
+; mb1_load_files - Load up the entire contents of the MB128 into memory.
 ;
 ; Args: A = bank # of image (uses 16 contiguous banks)
 ; Uses: mb1_directory address in mb1_base_bank.
@@ -283,15 +407,19 @@ mb1_new_image:	sta	mb1_base_bank		; Set the image base bank.
 ;
 ; Returns: X = MB1_OK (and Z flag) or an error code.
 ;
+; N.B. This verifies both the file and directory integrity!
+;
 
-mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
+mb1_load_files:	sta	mb1_base_bank		; Set the image base bank.
 
-		PUTS	cls_m128_save
+;		PUTS	cls_m128_save
 		PUTS	mb1_msg_rdd_now
 
 		jsr	mb1_load_dir		; Load the directory & verify
-;		beq	.got_dir		; that it makes sense.
-		bne	.show_load_err
+		beq	.got_dir		; that it makes sense.
+
+		jsr	mb1_check_dir		; Verify the file information
+		bne	.show_load_err		; integrity.
 
 .got_dir:	PUTS	mb1_msg_rdd_ok
 
@@ -424,6 +552,7 @@ mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
 		bne	.show_load_err		; This should never happen!
 
 		PUTS	mb1_msg_rdf_ok
+		PUTS	mb1_msg_lf
 
 		ldx	#MB1_OK			; Return MB128_OK.
 
@@ -459,7 +588,7 @@ mb1_copy_name:	ldy	#$08
 ; ****************************************************************************
 ; ****************************************************************************
 ;
-; mb1_save_image - Save the entire contents of memory to the MB128.
+; mb1_save_files - Save the entire contents of memory to the MB128.
 ;
 ; Args: mb1_base_bank = bank # of image (uses 16 contiguous banks)
 ; Uses: mb1_directory
@@ -467,10 +596,12 @@ mb1_copy_name:	ldy	#$08
 ;
 ; Returns: X = MB1_OK (and Z flag) or an error code.
 ;
+; N.B. This verifies both the file and directory integrity!
+;
 
-mb1_save_image:	sta	mb1_base_bank		; Set the image base bank.
+mb1_save_files:	sta	mb1_base_bank		; Set the image base bank.
 
-		PUTS	cls_m128_load
+;		PUTS	cls_m128_load
 
 		jsr	mb1_check_dir		; Sanity Check the directory
 		beq	.got_dir		; contents *before* saving.
@@ -570,6 +701,7 @@ mb1_save_image:	sta	mb1_base_bank		; Set the image base bank.
 		bne	.show_save_err
 
 		PUTS	mb1_msg_wrd_ok
+		PUTS	mb1_msg_lf
 
 		ldx	#MB1_OK			; Return MB128_OK.
 
@@ -616,9 +748,6 @@ mb1_image_addr:	pha
 ; mb1_load_dir - Load up the directory from the MB128.
 ;
 ; Args: mb1_base_bank = bank # of image (uses 16 contiguous banks)
-; Args: __ax = ptr to memory (page-aligned in MPR3).
-; Args: A    = Value.
-; Args: X    = Sector count.
 ;
 ; Returns: X = MB1_OK (and Z flag) or an error code.
 ;
@@ -645,10 +774,12 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		jsr	mb1_check_data
 		bne	.failed
 
+		ldx	#MB1_ERR_IDENT
+
 		ldy	#12-1			; Compare the signature.
 .ident:		lda	mb1_directory + MB1_HEAD_IDENT,y
 		cmp	mb1_signature,y
-		bne	.failed
+		bne	.finished
 		dey
 		bpl	.ident
 
@@ -672,9 +803,7 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 
 		pla				; Throw away retry count.
 
-		jmp	mb1_check_dir		; Validate the directory.
-
-;		ldx	#MB1_OK
+		ldx	#MB1_OK
 
 .finished:	txa				; Set the N & Z result flags.
 		rts
@@ -812,7 +941,9 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		bne	.used_loop
 		bra	.used_done		; All directory entries used!
 
-.invalid_file:	ldx	#MB1_ERR_INVALID	; Directory invalid, don't
+.invalid_file:	tai	tos_zero, mb1_directory + MB1_HEAD_IDENT, 12
+
+		ldx	#MB1_ERR_INVALID	; Directory invalid, don't
 		rts				; trust it!
 
 .used_done:	sec				; Clear out the rest of the
