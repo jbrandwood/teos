@@ -394,10 +394,10 @@ tos_m128_init:	if	REALHW
 
 		; Verify contents of BRAM_BANK.
 
+		stz	tos_m128_trash		; Mark the MB128 as good.
+
 		lda	#BRAM_BANK
 		sta	mb1_base_bank
-
-		stz	tos_m128_trash		; Mark the MB128 as good.
 
 		jsr	mb1_load_dir		; Load the directory.
 		bne	.bad_m128
@@ -421,14 +421,16 @@ tos_m128_init:	if	REALHW
 		lda	#BRAM_BANK		; Format the MB128 image.
 		jsr	mb1_new_image
 
-.m128_info:	jsr	mb1_csum_dir		; Fix directory for display.
+		jsr	mb1_csum_dir		; Fix directory for display.
 
-		ldx	#0			; Save MB128 info.
+.m128_info:	ldx	#0			; Save MB128 info.
 		jsr	tos_m128_info
 
 		; Verify contents of SLOT_BANK.
 
 .new_slot:	stz	tos_hilite_idx		; Reset hilite pulsing.
+
+		stz	tos_slot_trash		; Mark the SLOT as good.
 
 		lda	#SLOT_BANK		; Load the file data.
 		jsr	tos_load_m128
@@ -443,6 +445,8 @@ tos_m128_init:	if	REALHW
 
 		lda	#SLOT_BANK		; Format the SLOT image.
 		jsr	mb1_new_image
+
+		jsr	mb1_csum_dir		; Fix directory for display.
 
 .slot_info:	ldx	#2			; Save SLOT info.
 		jsr	tos_m128_info
