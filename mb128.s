@@ -779,7 +779,7 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		ldy	#12-1			; Compare the signature.
 .ident:		lda	mb1_directory + MB1_HEAD_IDENT,y
 		cmp	mb1_signature,y
-		bne	.finished
+		bne	.failed
 		dey
 		bpl	.ident
 
