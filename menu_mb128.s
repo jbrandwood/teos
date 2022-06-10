@@ -24,10 +24,11 @@
 
 msg_m128_init:	db	"%>%p5%xl",0
 		db	$0C
-		db	" MEMORY BASE SD: Initializing ...    "
-		db	"%<",$0A,$0A,$0A,0
+		db	" MEMORY BASE SD: Reading the MB128   "
+;		db	" MEMORY BASE SD: Initializing ...    "
+		db	"%<%p0",$0A,$0A,$0A,0
 
-msg_m128_none:	db	" Memory Base 128 not detected!",$0A,0
+;msg_m128_none:	db	" Memory Base 128 not detected!",$0A,0
 
 		;
 		;
@@ -294,6 +295,16 @@ msg_m128_name:	db	"%8c   %r"
 		dw	tos_temp_length
 		db	"%4u",$0A,$0A,0
 
+		;
+		;
+
+msg_m128_format:db	" The Memory Base 128 is unformatted! ",$0A,$0A,0
+
+msg_m128_damage:db	" The Memory Base 128 directory seems ",$0A
+		db	" to be corrupted and cannot be used! ",$0A,$0A,0
+
+msg_m128_empty:	db	" An empty MB128 image will be shown. ",$0A,$0A,0
+
 		; USE COPIES FROM BRAM MENU
 
 		if	0
@@ -360,18 +371,18 @@ tos_m128_fname:	ds	2			; Ptr to selected name in MB128.
 tos_m128_menu:	stz	tos_m128_mode
 		stz	tos_m128_slot
 
-		if	REALHW
+tos_m128_init:	if	REALHW
 
 		PUTS	msg_m128_init
 
 		jsr	mb1_detect		; Skip if there is no MB128.
-		beq	tos_m128_menu2
+		beq	.start_menu
 
 		endif
 
 		jmp	tos_hucard_menu
 
-tos_m128_menu2:	stw	#$0000,VCE_CTA
+.start_menu:	stw	#$0000,VCE_CTA
 		stw	#red464_palette,__ax
 		ldx	#8
 		jsr	copy_palettes
@@ -380,20 +391,30 @@ tos_m128_menu2:	stw	#$0000,VCE_CTA
 
 		; Verify contents of BRAM_BANK.
 
-		; Load up the MB128 directory.
-
 		lda	#BRAM_BANK
 		sta	mb1_base_bank
 
 		jsr	mb1_load_dir		; Load the directory.
-		bne	.bad_m128
-		jsr	mb1_check_dir		; Verify the directory.
 		beq	.m128_info
 
-.bad_m128:	lda	#BRAM_BANK		; Format the MB128 image.
+.bad_m128:	cpx	#MB1_ERR_IDENT		; What kind of error?
+		bne	.corrupt
+
+		PUTS	msg_m128_format
+		bra	.wait_user
+
+.corrupt:	PUTS	msg_m128_damage
+
+.wait_user:	PUTS	msg_m128_empty
+		PUTS	msg_press_a_key
+		jsr	wait_for_key
+
+		lda	#BRAM_BANK		; Format the MB128 image.
 		jsr	mb1_new_image
 
-.m128_info:	ldx	#0			; Save MB128 info.
+.m128_info:	jsr	mb1_csum_dir		; Fix directory for display.
+
+		ldx	#0			; Save MB128 info.
 		jsr	tos_m128_info
 
 		; Verify contents of SLOT_BANK.
@@ -404,13 +425,15 @@ tos_m128_menu2:	stw	#$0000,VCE_CTA
 		jsr	tos_load_m128
 		bne	.bad_slot
 
-.got_slot:	jsr	mb1_check_dir		; Verify the MB128 image.
-		beq	.slot_info		; Is it OK?
+		jsr	mb1_test_dir		; Check the directory signature
+		beq	.slot_info		; and checksum.
 
 .bad_slot:	lda	#SLOT_BANK		; Format the MB128 image.
 		jsr	mb1_new_image
 
-.slot_info:	ldx	#2			; Save SLOT info.
+.slot_info:	jsr	mb1_csum_dir		; Fix directory for display.
+
+		ldx	#2			; Save SLOT info.
 		jsr	tos_m128_info
 
 		; Has the mode just changed?
@@ -615,7 +638,7 @@ tos_m128_menu2:	stw	#$0000,VCE_CTA
 		asl	a
 		tax
 		jsr	.vector
-		jmp	tos_m128_menu2
+		jmp	tos_m128_init
 
 .vector:	jmp	[.tbl_funcs,x]
 
@@ -895,7 +918,13 @@ func_m128_load:	PUTS	cls_m128_load
 		jsr	tos_load_m128
 		bne	.failed
 
-		PUTS	.msg_save
+		jsr	mb1_test_dir		; Test the directory signature
+		beq	.save			; and checksum.
+
+		lda	mb1_base_bank		; If they fail, copy a blank
+		jsr	mb1_new_image		; image instead.
+
+.save:		PUTS	.msg_save
 
 		lda	#SLOT_BANK		; Save the MB128 image.
 		jsr	mb1_save_image

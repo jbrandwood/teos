@@ -186,10 +186,13 @@ mb1_load_image:	sta	mb1_base_bank		; Set the image base bank.
 ;		PUTS	mb1_msg_rdd_now
 
 		jsr	mb1_load_dir		; Load the directory & verify
-		beq	.got_dir		; that it makes sense.
+		beq	.got_dir		; signature and checksum.
 
 		cpx	#MB1_ERR_IDENT		; Is the MB128 unformatted?
 		bne	.show_load_err
+
+		PUTS	mb1_msg_lf
+		PUTS	mb1_msg_lf
 
 		lda	mb1_base_bank		; Create a blank image if the
 		jmp	mb1_new_image		; MB128 is unformatted.
@@ -416,9 +419,9 @@ mb1_load_files:	sta	mb1_base_bank		; Set the image base bank.
 		PUTS	mb1_msg_rdd_now
 
 		jsr	mb1_load_dir		; Load the directory & verify
-		beq	.got_dir		; that it makes sense.
+		bne	.show_load_err		; that it makes sense.
 
-		jsr	mb1_check_dir		; Verify the file information
+		jsr	mb1_csum_dir		; Verify the file information
 		bne	.show_load_err		; integrity.
 
 .got_dir:	PUTS	mb1_msg_rdd_ok
@@ -548,7 +551,7 @@ mb1_load_files:	sta	mb1_base_bank		; Set the image base bank.
 		lda	#$FF			; Value to write.
 		jsr	mb1_fill_memory
 
-.fix_csum:	jsr	mb1_check_dir		; Update directory checksum.
+.fix_csum:	jsr	mb1_csum_dir		; Update directory checksum.
 		bne	.show_load_err		; This should never happen!
 
 		PUTS	mb1_msg_rdf_ok
@@ -603,7 +606,7 @@ mb1_save_files:	sta	mb1_base_bank		; Set the image base bank.
 
 ;		PUTS	cls_m128_load
 
-		jsr	mb1_check_dir		; Sanity Check the directory
+		jsr	mb1_csum_dir		; Sanity Check the directory
 		beq	.got_dir		; contents *before* saving.
 		jmp	.finished
 
@@ -774,6 +777,34 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		jsr	mb1_check_data
 		bne	.failed
 
+		jsr	mb1_test_dir		; Test signature and checksum.
+		bne	.failed
+
+		pla				; Throw away retry count.
+
+.finished:	txa				; Set the N & Z result flags.
+		rts
+
+.failed:	pla				; Restore retry count.
+		dec	a			; Timeout?
+		bne	.retry			; Timeout!
+		bra	.finished
+
+
+
+; ****************************************************************************
+; ****************************************************************************
+;
+; mb1_test_dir - Test the directory signature and checksum.
+;
+; Args: mb1_base_bank = bank # of image (uses 16 contiguous banks)
+;
+; Returns: X = MB1_OK (and Z flag) or an error code.
+;
+
+mb1_test_dir:	lda	mb1_base_bank		; Map in the directory bank.
+		tam3
+
 		ldx	#MB1_ERR_IDENT
 
 		ldy	#12-1			; Compare the signature.
@@ -801,17 +832,10 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		cmp	mb1_directory + MB1_HEAD_CSUM + 1
 		bne	.failed
 
-		pla				; Throw away retry count.
-
 		ldx	#MB1_OK
 
-.finished:	txa				; Set the N & Z result flags.
+.failed:	txa				; Set the N & Z result flags.
 		rts
-
-.failed:	pla				; Restore retry count.
-		dec	a			; Timeout?
-		bne	.retry			; Timeout!
-		bra	.finished
 
 
 
@@ -831,7 +855,7 @@ mb1_load_dir:	lda	mb1_base_bank		; Map in the directory bank.
 mb1_save_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		tam3
 
-		jsr	mb1_check_dir		; Fix HEAD_USED & HEAD_CSUM.
+		jsr	mb1_csum_dir		; Fix HEAD_USED & HEAD_CSUM.
 		bne	.finished
 
 		lda	#MB1_NUM_RETRIES	; Retry count.
@@ -869,7 +893,7 @@ mb1_save_dir:	lda	mb1_base_bank		; Map in the directory bank.
 ; ****************************************************************************
 ; ****************************************************************************
 ;
-; mb1_check_dir - Test directory and update the USED and CSUM values.
+; mb1_csum_dir - Update the USED and CSUM values, scan for directory errors.
 ;
 ; Args: mb1_base_bank = bank # of image (uses 16 contiguous banks)
 ; Args: none
@@ -877,7 +901,7 @@ mb1_save_dir:	lda	mb1_base_bank		; Map in the directory bank.
 ; Returns: X = MB1_OK (and Z flag) or an error code.
 ;
 
-mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
+mb1_csum_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		tam3
 
 		stz	mb1_file_count		; #files.
@@ -902,6 +926,8 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 
 		lda	#1024 / 256		; # of pages in directory.
 		sta	<__cl
+
+		ldx	#MB1_OK			; Start by assuming success.
 
 		ldy	#$10			; Skip the header.
 
@@ -941,10 +967,11 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		bne	.used_loop
 		bra	.used_done		; All directory entries used!
 
-.invalid_file:	tai	tos_zero, mb1_directory + MB1_HEAD_IDENT, 12
+.invalid_file:	tya				; Go back to the start of the
+		and	#$F0			; invalid file entry.
+		tay
 
-		ldx	#MB1_ERR_INVALID	; Directory invalid, don't
-		rts				; trust it!
+		ldx	#MB1_ERR_INVALID	; Signal directory has errors.
 
 .used_done:	sec				; Clear out the rest of the
 		tya				; directory.
@@ -967,7 +994,9 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 
 		inc	mb1_frag_count		; #free-space fragments.
 
-.checksum:	lda	#<(mb1_directory + 2)	; Generate the checksum.
+.checksum:	phx				; Preserve status code.
+
+		lda	#<(mb1_directory + 2)	; Generate the checksum.
 		sta	<__ax + 0
 		lda	#>(mb1_directory + 2)
 		sta	<__ax + 1
@@ -981,8 +1010,8 @@ mb1_check_dir:	lda	mb1_base_bank		; Map in the directory bank.
 		lda	<__ah
 		sta	mb1_directory + MB1_HEAD_CSUM + 1
 
-.self_cnt:	ldy	#0			; #files.
-		ldx	#MB1_OK
+		plx				; Restore status code.
+
 		rts
 
 
