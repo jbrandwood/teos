@@ -358,6 +358,9 @@ tos_m128_hilite:ds	1
 
 tos_m128_fname:	ds	2			; Ptr to selected name in MB128.
 
+tos_m128_trash:	ds	1			; Is the MB128 contents bad?
+tos_slot_trash:	ds	1			; Is the SLOT contents bad?
+
 		code
 
 
@@ -394,10 +397,16 @@ tos_m128_init:	if	REALHW
 		lda	#BRAM_BANK
 		sta	mb1_base_bank
 
+		stz	tos_m128_trash		; Mark the MB128 as good.
+
 		jsr	mb1_load_dir		; Load the directory.
+		bne	.bad_m128
+		jsr	mb1_csum_dir		; Fix directory for display.
 		beq	.m128_info
 
-.bad_m128:	cpx	#MB1_ERR_IDENT		; What kind of error?
+.bad_m128:	stx	tos_m128_trash		; Mark the MB128 as bad.
+
+		cpx	#MB1_ERR_IDENT		; What kind of error?
 		bne	.corrupt
 
 		PUTS	msg_m128_format
@@ -426,14 +435,16 @@ tos_m128_init:	if	REALHW
 		bne	.bad_slot
 
 		jsr	mb1_test_dir		; Check the directory signature
-		beq	.slot_info		; and checksum.
+		bne	.bad_slot		; and checksum.
+		jsr	mb1_csum_dir		; Fix directory for display.
+		beq	.slot_info
 
-.bad_slot:	lda	#SLOT_BANK		; Format the MB128 image.
+.bad_slot:	stx	tos_slot_trash		; Mark the SLOT as bad.
+
+		lda	#SLOT_BANK		; Format the SLOT image.
 		jsr	mb1_new_image
 
-.slot_info:	jsr	mb1_csum_dir		; Fix directory for display.
-
-		ldx	#2			; Save SLOT info.
+.slot_info:	ldx	#2			; Save SLOT info.
 		jsr	tos_m128_info
 
 		; Has the mode just changed?
@@ -850,13 +861,16 @@ func_m128_save:	PUTS	cls_m128_save		; Confirm the operation.
 
 .confirmed:	PUTS	cls_m128_save		; Inform the user.
 
+		lda	tos_m128_trash		; Is the MB128 corrupt?
+		bne	.skip_load		; Save clean copy from memory.
+
 		PUTS	.msg_load
 
 		lda	#BRAM_BANK		; Load the MB128 image.
 		jsr	mb1_load_image
 		bne	.failed
 
-		PUTS	.msg_save
+.skip_load:	PUTS	.msg_save
 
 		lda	#BRAM_BANK		; Save image to the SD card.
 		jsr	tos_save_m128
@@ -912,19 +926,16 @@ func_m128_load:	PUTS	cls_m128_load
 
 .confirmed:	PUTS	cls_m128_load		; Inform the user.
 
+		lda	tos_slot_trash		; Is the SLOT corrupt?
+		bne	.skip_load		; Save clean copy from memory.
+
 		PUTS	.msg_load
 
 		lda	#SLOT_BANK		; Load image from the SD card.
 		jsr	tos_load_m128
 		bne	.failed
 
-		jsr	mb1_test_dir		; Test the directory signature
-		beq	.save			; and checksum.
-
-		lda	mb1_base_bank		; If they fail, copy a blank
-		jsr	mb1_new_image		; image instead.
-
-.save:		PUTS	.msg_save
+.skip_load:	PUTS	.msg_save
 
 		lda	#SLOT_BANK		; Save the MB128 image.
 		jsr	mb1_save_image
