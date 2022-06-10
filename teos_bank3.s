@@ -468,8 +468,10 @@ wait_vsync_usb:	pha
 		phx
 		phy
 		ldy	irq_cnt
-.wait:		TED_USB_RD_TEST
+.wait:	.if	REALHW
+		TED_USB_RD_TEST
 		bne	.got_usb
+	.endif
 		cpy	irq_cnt
 		beq	.wait
 		ply
