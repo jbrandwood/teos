@@ -149,9 +149,19 @@ msg_m128_1frag:	db	"%>%xl",22
 		db	"%y",5
 		db	"%p3"
 ;		db	"------------------",$0A
-		db	"Congratulations!",$0A,$0A,$0A,$0A
+;		db	"Congratulations!",$0A,$0A,$0A,$0A
 		db	"MB128 free space",$0A,$0A
-		db	"is defragmented.",$0A,$0A
+		db	"is defragmented.",$0A,$0A,$0A,$0A
+
+;		db	"It does not need",$0A,$0A
+;		db	"defragmentation!",$0A,$0A
+
+		db	"The maximum size",$0A,$0A
+		db	"of a new file is",$0A,$0A
+		db	"%r"
+		dw	tos_m128_maxsz
+		db	"%p2%lu%p3"
+		db	" bytes.",$0A,$0A
 		db	"%<%xl",0
 		db	0
 
@@ -303,7 +313,14 @@ msg_m128_format:db	" The Memory Base 128 is unformatted! ",$0A,$0A,0
 msg_m128_damage:db	" The Memory Base 128 directory seems ",$0A
 		db	" to be corrupted and cannot be used! ",$0A,$0A,0
 
-msg_m128_empty:	db	" An empty MB128 image will be shown. ",$0A,$0A,0
+msg_m128_empty:	db	" TEOS will use a new formatted image ",$0A
+		db	" instead, but your MB128 will remain ",$0A
+		db	" unchanged unless you choose to copy ",$0A
+		db	" the contents of an SD Slot to it.",$0A,$0A,0
+
+;		db	" an SD card SLOT to it.",$0A,$0A,0
+
+;msg_m128_empty:db	" An empty MB128 image will be shown. ",$0A,$0A,0
 
 		; USE COPIES FROM BRAM MENU
 
@@ -360,6 +377,8 @@ tos_m128_fname:	ds	2			; Ptr to selected name in MB128.
 
 tos_m128_trash:	ds	1			; Is the MB128 contents bad?
 tos_slot_trash:	ds	1			; Is the SLOT contents bad?
+
+tos_m128_maxsz:	ds	4			; Maximum file size.
 
 		code
 
@@ -425,6 +444,13 @@ tos_m128_init:	if	REALHW
 
 .m128_info:	ldx	#0			; Save MB128 info.
 		jsr	tos_m128_info
+
+		lda	tos_m128_free		; Save maximum file size.
+		jsr	mb1_xvert_size
+		sta	tos_m128_maxsz + 0
+		stx	tos_m128_maxsz + 1
+		sty	tos_m128_maxsz + 2
+		stz	tos_m128_maxsz + 3
 
 		; Verify contents of SLOT_BANK.
 

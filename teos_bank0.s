@@ -874,7 +874,6 @@ tos_div16_7u:	ldx	#16
 		sta	<__dl			; Save the remainder.
 		rts
 
-		if	0
 tos_div32_7u:	ldx	#32
 		cla				; Clear Remainder.
 		asl	<__ax + 0		; Rotate Dividend, MSB -> C.
@@ -893,7 +892,6 @@ tos_div32_7u:	ldx	#32
 		bne	.loop
 		sta	<__dl			; Save the remainder.
 		rts
-		endif
 
 
 
@@ -1044,8 +1042,8 @@ tos_print_msg:	stx	<__si + 0
 		bne	.specifier_X
 
 		stz	<__ah
-;		stz	<__bl
-;		stz	<__bh
+		stz	<__bl
+		stz	<__bh
 
 		clx
 .decimal_val:	jsr	.read_param		; Read the desired # of bytes
@@ -1062,7 +1060,7 @@ tos_print_msg:	stx	<__si + 0
 		lda	#10			; Divide by 10 and push the
 		sta	<__cl			; remainder onto the stack.
 
-.decimal_div16:	jsr	tos_div16_7u
+.decimal_div16:	jsr	tos_div32_7u
 		lda	<__dl
 		clc
 		adc	#'0'			; Always leaves C clr.
