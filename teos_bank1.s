@@ -17,9 +17,6 @@
 		.bank	1
 		.org	$A000
 
-;		include	"lzss.s"
-;		include	"lzss-rom.s"
-
 		include	"mb128.s"
 		include	"huc6280.s"
 		include	"osfunc.s"

@@ -368,7 +368,8 @@ tos_fastfwd_dir:jsr	f32_rewind_dir		; Goto 1st cluster in directory.
 
 		.bss
 
-tos_card_size:	ds	1
+tos_card_size:	ds	1			; Rounded size in 128KB.
+tos_128k_card:	ds	1			; Exactly 384KB if == 3!
 
 		.code
 
@@ -385,13 +386,20 @@ tos_load_hucard:lda	f32_file_length + 3	; Reject file length >= 16MB.
 		adc	#$00
 		ror	a
 		sta	<__ax + 1		; Hi-byte of # blocks in file.
-		sta	tos_card_size		; Remember HuCard size.
+		sta	tos_card_size		; HuCard size in 128KB chunks.
+		sta	tos_128k_card		; Z if not, else 128KB chunks.
 		sax
 		ror	a
 		sta	<__ax + 0		; Lo-byte of # blocks in file.
 
 		bit	#$0E			; Reject HuCard not a multiple
 		bne	.bad_hucard		; of 8KB (+ 512 byte header).
+
+		bit	#$F0			; Is the HuCard a multiple of
+		beq	.check_min		; 128KB?
+
+		stz	tos_128k_card		; Signal not 128KB-aligned.
+		inc	tos_card_size		; Round up to next 128KB.
 
 .check_min:	cpx	#$00			; Is the file size < 8KB?
 		bne	.check_max
@@ -437,8 +445,8 @@ tos_load_hucard:lda	f32_file_length + 3	; Reject file length >= 16MB.
 		jsr	f32_file_read		; Load the file into memory.
 		bne	.close
 
-		lda	tos_card_size		; Did we load a 384KB HuCard?
-		cmp	#$03
+		lda	tos_128k_card		; Z if not, else 128KB chunks.
+		cmp	#$03			; Did we load a 384KB HuCard?
 		bne	.success
 
 		lda	#$4F			; Map in TED2 512KB bank 4.
@@ -543,18 +551,21 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 
 		; Check for HuCards that need special handling.
 
+		lda	tos_128k_card		; Skip the test if the HuCard
+		beq	.test_done		; is not aligned to 128KB.
+
 		lda	#<.hucard_tbl		; Table of signatures of images
 		sta	<__al			; that need special handling.
 		lda	#>.hucard_tbl
 		sta	<__ah
 
-		ldx	#5-1			; # of signatures to search for.
+		ldx	#4-1			; # of signatures to search for.
 
 .test_card:	ldy	#15-1
 
 		lda	[__ax],y		; Does the HuCard size match?
 		dey
-		cmp	tos_card_size
+		cmp	tos_128k_card		; Z if not, else 128KB chunks.
 		bne	.fail
 
 		lda	[__ax],y		; Get ptr to card's test area.
@@ -588,7 +599,13 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 
 		; If it's not a special case HuCard, then run it as a ROM.
 
-		ldy	#%00011011		; FPGA=off+locked, RAM=readonly.
+.test_done:	ldy	#%00011011		; FPGA=off+locked, RAM=readonly.
+
+		lda	tos_card_size		; Enable SF2 mapper if the
+		cmp	#8+1			; HuCard is > 1MBytes.
+		bcc	.execute
+
+		ldy	#%00111011		; SF2=enabled.
 
 .execute:	sei				; Definitely disable interrupts!
 		phy				; Preserve FPGA flags to write.
@@ -661,11 +678,12 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 
 .vector_jmp:	jmp	[.vector_tbl,x]
 
-.vector_tbl:	dw	.found_stft2		; #0
-		dw	.found_romram		; #1
-		dw	.found_tennokoe		; #2
-		dw	tos_patch_usa30		; #3 - Call function to patch.
-		dw	tos_patch_jpn30		; #4 - Call function to patch.
+.vector_tbl:	;dw	.found_stft2		; #0
+
+		dw	.found_romram		; #0
+		dw	.found_tennokoe		; #1
+		dw	tos_patch_usa30		; #2 - Call function to patch.
+		dw	tos_patch_jpn30		; #3 - Call function to patch.
 
 		; Tennokoe is a ROMRAM HuCard, and needs writable RAM.
 		; Populous is a ROMRAM HuCard, and needs writable RAM.
@@ -682,30 +700,30 @@ tos_exec_hucard:lda	#$4F			; Map in TED2 512KB bank 4.
 .found_stft2:	ldy	#%00111011		; FPGA=off+locked, RAM=readonly,
 		rts				; SF2=enabled.
 
-.hucard_tbl:	; #4 - 256KB System Card 3.0 PCE @ Location $1FF4
+.hucard_tbl:	; #3 - 256KB System Card 3.0 PCE @ Location $1FF4
 		db	$68,$80,$36,$E7,$70,$E8,$B3,$E6,$A9,$E6,$F3,$E0
 		dw	$7FF4
 		db	$02			; 256KB size.
 
-		; #3 - 256KB System Card 3.0 TGX @ Location $1FF4
+		; #2 - 256KB System Card 3.0 TGX @ Location $1FF4
 		db	$68,$80,$4F,$E7,$89,$E8,$CC,$E6,$C2,$E6,$F3,$E0
 		dw	$7FF4
 		db	$02			; 256KB size.
 
-		; #2 - 128KB Tennokoe Bank @ Location $1FD0
+		; #1 - 128KB Tennokoe Bank @ Location $1FD0
 		db	$93,$56,$82,$CC,$90,$BA,$83,$6F,$83,$93,$83,$4E
 		dw	$7FD0
 		db	$01			; 128KB size.
 
-		; #1 - 512KB Populous @ Location $1F25
+		; #0 - 512KB Populous @ Location $1F25
 		db	" POPULOUS   "
 		dw	$7F25
 		db	$04			; 512KB size.
 
-		; #0 - 2.5MB Street Fighter II @ Location $1FF4
-		db	$20,$48,$BC,$E1,$C1,$E1,$60,$3C,$BD,$E1,$00,$E0
-		dw	$7FF4
-		db	$14			; 2.5MB size.
+;		; #0 - 2.5MB Street Fighter II @ Location $1FF4
+;		db	$20,$48,$BC,$E1,$C1,$E1,$60,$3C,$BD,$E1,$00,$E0
+;		dw	$7FF4
+;		db	$14			; 2.5MB size.
 
 
 

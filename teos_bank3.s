@@ -568,7 +568,17 @@ wait_vsync_usb:	pha
 		cmp	#'+'			; Load another bank!
 		beq	.bank_loop
 
-		pla				; Discard TED 512KB block.
+		lda	tos_card_size		; HuCard size in 128KB chunks.
+		sta	tos_128k_card		; Z if not, else 128KB chunks.
+
+		tma3				; Did we load a partial 128KB
+		bit	#$0F			; chunk?
+		beq	.full_128kb
+
+		stz	tos_128k_card		; Signal not 128KB-aligned.
+		inc	tos_card_size		; Round up to next 128KB.
+
+.full_128kb:	pla				; Discard TED 512KB block.
 
 		TED_USB_RD_BYTE			; Is this a special HuCard?
 ;		cmp	#'p'			; It is Populous?
@@ -592,8 +602,12 @@ wait_vsync_usb:	pha
 .msg_usb_upload:db	" Starting download from computer!",$0A," ",0
 .msg_usb_dot:	db	".",0
 .msg_usb_eol:	db	$0A," ",0
-.msg_usb_done:	db	"Completed download of type "
-.msg_usb_type:	db	"'x' HuCard.",$0A,$0A,$0A,0
+.msg_usb_done:	db	"Downloaded "
+		db	"%r"
+		dw	tos_card_size
+		db	"%hu 128KB chunks of HuCARD.",$0A
+		db	" Completed download of type "
+.msg_usb_type:	db	"'x' HuCARD.",$0A,$0A,$0A,0
 
 
 
