@@ -1178,7 +1178,7 @@ rom_nmi_stub:	rti
 
 tos_bit_mask:	db	$01,$02,$04,$08,$10,$20,$40,$80
 
-		dw	$0300			; TEOS Version.
+		dw	$0301			; TEOS Version.
 tos_empty:	dw	$FFFF			; Useful constant for TAI.
 tos_zero:	dw	$0000			; Useful constant for TAI.
 		dw	rom_irq2_stub		; a.k.a. IRQ2
