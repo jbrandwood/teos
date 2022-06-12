@@ -3,7 +3,7 @@
 TEOS
 ====
 
-  **A replacement Operating System for KRIKzz's Turbo Everdrive v2**
+  **A replacement Operating System for Krikzz's Turbo Everdrive v2**
 
   Copyright John Brandwood 2019-2022.
 
@@ -18,9 +18,19 @@ TEOS
 About
 -----
 
-This is a replacement Operating System for KRIKzz's Turbo Everdrive v2.
+This is a replacement Operating System for Krikzz's Turbo Everdrive v2.
 
 Please do NOT try to use this on an old Turbo Everdrive v1, IT WILL NOT WORK!
+
+
+While TEOS is graphically nicer than the original Turbo Everdrive OS, the real reasons for using it are ...
+
+* It allows the TurboGrafx (and PC Engine) to use the Turbo Everdrive v2 as a Super System Card, avoiding the need to buy the very-expensive US TurboGrafx Super System Card.
+* It avoids the potentially damaging memory bus-fighting that occurs with Krikzz's OS when running the PC Engine (or TurboGrafx) Super System Card HuCARD on the Turbo Everdrive.
+* It supports copying the PC Engine's "Backup RAM" contents to and from the Turbo Everdrive's SD card.
+* It supports copying the PC Engine's "Memory Base 128" contents to and from the Turbo Everdrive's SD card.
+* It fixes the graphics corruption in the Japanese "POPULOUS" HuCARD game.
+* It supports the use of the Japanese "Tennokoe Bank" HuCARD utility.
 
 
 *****************************************************************************
@@ -28,7 +38,7 @@ Please do NOT try to use this on an old Turbo Everdrive v1, IT WILL NOT WORK!
 TEOS Release v3.01 (2022/06/12)
 -------------------------------
 
-Just extract the contents of the .ZIP file, and copy the extracted files to the root of your Turbo EverDrive's SD card.
+Just extract the contents of the release "TEOS-3.01-2022-06-12.ZIP" file, and then copy the extracted files to the root of your Turbo EverDrive's SD card.
 
 In particular ... the contents of the /TBED/ directory *must* go in that directory.
 
@@ -60,12 +70,28 @@ Changes since TEOS Beta 5 (2021/01/26)
 
 *****************************************************************************
 
+Changes for TEOS Beta 5 (2021/01/26)
+------------------------------------
+
+TEOS Beta 5 fixes initialization problems with the following games ...
+
+* Tower of Druaga
+* Space Harrier
+* Shiryou Sensen
+* Out Live
+* Benkei Gaiden
+* Gekisha Boy
+* Night Creatures
+
+
+*****************************************************************************
+
 Building a new TEOS from Source Code
 ------------------------------------
 
 The source code for TEOS can be found on GITHUB at https://github.com/jbrandwood/teos
 
-You will need to use a recent version of the PCEAS assembler to successfully built TEOS.
+You will need to use a recent version of the PCEAS assembler to successfully build TEOS.
 
 
 The PCEAS assembler is one component of the HuC project which can be found on GITHUB at https://github.com/jbrandwood/huc
