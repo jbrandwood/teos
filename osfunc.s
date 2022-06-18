@@ -222,7 +222,8 @@ tos_show_files:	stz	tos_num_files		; # of files on this page.
 		lda	#' '
 		jsr	tos_tty_write
 
-		PUTS	f32_long_name		; Write the name to VRAM.
+;		PUTS	f32_long_name		; Write the name to VRAM.
+		PUTS	.filename		; Write the name to VRAM.
 
 		stz	tos_tty_xpos
 		inc	tos_tty_ypos
@@ -249,6 +250,10 @@ tos_show_files:	stz	tos_num_files		; # of files on this page.
 		sta	tos_1st_cluster,x
 		inx
 		rts
+
+.filename:	db	"%r"
+		dw	f32_long_name
+		db	"%s",0
 
 
 
